@@ -1,7 +1,11 @@
-	title	'Z80 instruction set exerciser for Spectrum'
-
 ; zexlax.z80 - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
+;
+; 28-Dec-2002: Ported to the Sega Master System:
+; + moved test code into RAM
+; + moved various data locations into RAM
+; + added SMS initialization routines, a character set, etc.
+; + wrote print character routine to emulate console.
 ;
 ; 03-Nov-2002: Modified to assemble with ZMAC and MAXAM
 ; Copyright (C) 2002 J.G.Harston
@@ -29,15 +33,42 @@
 ; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 	aseg
-	org	8000h
-
 	jp	start
 
+        org     10h
+        jp      smsprint
+
+	org	100h
+
 ; machine state before test (needs to be at predictably constant address)
-msbt:	ds	14
-spbt:	ds	2
+cntbit  equ     0C000h
+cntbyt  equ     0C001h
+shfbit  equ     0C003h
+shfbyt  equ     0C004h
+
+counter equ     0C010h
+shifter equ     0C038h
+
+msbt    equ     0C070h
+spbt    equ     0C07Eh
+
 msbthi	equ	msbt / 0100h
 msbtlo	equ	msbt & 0ffh
+
+msat    equ     0C080h
+spat    equ     0C08Eh
+spsav   equ     0C090h
+
+crcval  equ     0C092h
+
+cursorx equ     0C300h
+vramadr equ     0C304h
+scroll  equ     0C306h
+scrollf equ     0C307h
+
+test    equ     0C400h
+flgmsk  equ     test + (flgmskcode - testcode)
+iut     equ     test + (iutcode - testcode)
 
 
 ; For the purposes of this test program, the machine state consists of:
@@ -90,9 +121,10 @@ msbtlo	equ	msbt & 0ffh
 ; real system) is available, a failing test case can be isolated by
 ; hand using a binary search of the test space.
 
+start: 	call smssetup
 
-start:	; ld	hl,(6)
-	ld	hl,08000h	; put stack at top of 32k
+        ; ld	hl,(6)
+	ld	hl,0DFF0h	; put stack at top of SMS RAM
 	ld	sp,hl
 	ld	de,msg1
 	ld	c,9
@@ -129,8 +161,8 @@ tests:
 	dw	daaop	; can't use opcode as label
 	dw	inca
 	dw	incb
-	dw	incbc
 	dw	incc
+	dw	incbc
 	dw	incd
 	dw	incde
 	dw	ince
@@ -154,7 +186,7 @@ tests:
 	dw	ld166
 	dw	ld167
 	dw	ld168
-	dw	ld16im
+        dw      ld16im
 	dw	ld16ix
 	dw	ld8bd
 	dw	ld8im
@@ -792,7 +824,7 @@ tlp:	ld	a,(iut)
 	jp	nz,tlp1
 	ld	a,(iut+1)
 	cp	076h
-tlp1:	call	nz,test		; execute the test instruction
+tlp1:	call	nz,test   	; execute the test instruction
 tlp2:	call	count		; increment the counter
 	call	nz,shift	; shift the scan bit
 	pop	hl		; pointer to test case
@@ -896,8 +928,8 @@ substr:	pop	hl
 	ret
 
 ; get next counter bit in low bit of a
-cntbit:	ds	1
-cntbyt:	ds	2
+; cntbit:	ds	1
+; cntbyt:	ds	2
 
 nxtcbit: push	bc
 	push	hl
@@ -922,8 +954,8 @@ ncb1:	ld	a,b
 	ret
 	
 ; get next shifter bit in low bit of a
-shfbit:	ds	1
-shfbyt:	ds	2
+; shfbit:	ds	1
+; shfbyt:	ds	2
 
 nxtsbit: push	bc
 	push	hl
@@ -1074,11 +1106,12 @@ shflp1:	inc	hl
 	inc	de
 	jp	shflp
 
-counter: ds	2*20
-shifter: ds	2*20
+; counter: ds	2*20
+; shifter: ds	2*20
 
 ; test harness
-test:	push	af
+testcode:
+        push	af
 	push	bc
 	push	de
 	push	hl
@@ -1106,7 +1139,7 @@ test:	push	af
 	pop	bc
 	pop	af
 	ld	sp,(spbt)
-iut:	ds	4		; max 4 byte instruction under test
+iutcode: ds	4		; max 4 byte instruction under test
 	ld	(spat),sp	; save stack pointer
 	ld	sp,spat
 	push	af		; save other registers
@@ -1121,7 +1154,8 @@ iut:	ds	4		; max 4 byte instruction under test
 	ld	(msat),hl
 	ld	hl,flgsat	; flags after test
 	ld	a,(hl)
-flgmsk:	and	0d7h		; mask-out irrelevant bits (self-modified code!)
+flgmskcode:	
+        and	0d7h		; mask-out irrelevant bits (self-modified code!)
 	ld	(hl),a
 	ld	b,16		; total of 16 bytes of state
 	ld	de,msat
@@ -1153,13 +1187,15 @@ tcrc:	ld	a,(de)
 	pop	af
 	ret
 
+testcodeend:
+
 ; machine state after test
-msat:	ds	14	; memop,iy,ix,hl,de,bc,af
-spat:	ds	2	; stack pointer after test
+; msat:	ds	14	; memop,iy,ix,hl,de,bc,af
+; spat:	ds	2	; stack pointer after test
 ; ZMAC/MAXAM doesn't like ':' after label with EQUs
 flgsat	equ	spat-2	; flags
 
-spsav:	ds	2	; saved stack pointer
+; spsav:	ds	2	; saved stack pointer
 
 ; display hex string (pointer in hl, byte count in b)
 hexstr:	ld	a,(hl)
@@ -1334,7 +1370,7 @@ icrclp:	ld	(hl),a
 	pop	af
 	ret
 
-crcval	ds	4
+; crcval	ds	4
 
 crctab:	db	000h,000h,000h,000h
 	db	077h,007h,030h,096h
@@ -1593,3 +1629,399 @@ crctab:	db	000h,000h,000h,000h
 	db	05ah,005h,0dfh,01bh
 	db	02dh,002h,0efh,08dh
 
+include 'font.src'
+include 'vdpdata.src'
+
+smssetup:
+        push af
+        push bc
+        push de
+        push hl        
+
+        call    loadfont
+        call    loadpalette        
+        call    setupvdp
+        call    initcursor
+        call    install         ; first, install test code into RAM
+
+        pop hl
+        pop de
+        pop bc
+        pop af
+
+        ret
+
+;
+; Set up our VDP for display.  Set the correct video mode, and enable
+; display.
+;
+
+setupvdp:
+        ld hl, vdpregs
+        ld b, 18
+        ld c, 0BFh
+        otir
+
+        ret
+
+;
+; Install our palette into the VDP.
+;
+
+loadpalette:
+        ld hl, palette
+        ld b, 020h
+        ld c, 0BEh
+
+        ld a, 000h
+        out (0BFh), a
+        ld a, 0C0h
+        out (0BFh), a
+        
+        otir
+
+        ret
+
+;
+; Load the font.  Also clears the VRAM first.
+;
+
+loadfont:
+        ld hl, 04000h
+        ld bc, 1
+        ld a, 00h
+
+clearloop:
+        out (0BEh), a
+        sbc hl, bc
+        jr nz, clearloop
+
+        ld a, 000h
+        out (0BFh), a
+        ld a, 060h
+        out (0BFh), a
+
+        ld hl, font
+        ld bc, fontend - font
+        ld de, 1
+
+fontloop:
+        ld a, (hl)
+
+        out (0BEh), a
+        out (0BEh), a
+        out (0BEh), a
+        out (0BEh), a
+
+        inc hl
+        dec c
+        jr nz, fontloop
+
+        djnz fontloop
+
+        ret
+
+;
+; Initialize the cursor variables.
+;
+
+initcursor:
+        ld hl, 00h
+        ld a, 00h
+
+        ld (cursorx), a
+        ld (vramadr), hl
+        ld (scroll), a
+        ld (scrollf), a
+
+        ret
+        
+; Copies the test code into modifiable memory.
+; This is because the code is, in fact, self-modifying.
+; Ick!
+
+install:
+        push bc
+        push de
+        push hl
+
+        ld de, test
+        ld hl, testcode
+        ld bc, testcodeend - testcode
+        ldir
+
+        pop hl
+        pop de
+        pop bc
+        ret
+
+;
+; Code to wait for start of blanking period.
+;
+
+waitvblank:
+        push bc
+
+        ld c, 0BFh
+
+vunblankloop:
+        in b, (c)
+        bit 7, b
+        jp z, vblankloop
+
+vblankloop:
+        in b, (c)
+        bit 7, b
+        jp nz, vblankloop
+
+        pop bc
+        ret        
+
+;
+; Code to print a character on the screen.  Does stuff like handle
+; line feeds, scrolling, etc.
+;
+
+smsprint:
+        push af
+        push bc
+        push de
+        push hl
+
+        call waitvblank         ; First, wait for blanking period
+
+        ;       
+        ; First, write the character to the screen
+        ;
+
+        ; If it's a carriage return, skip it.
+
+        cp 13
+        jp z, doneprint
+
+        ; Otherwise, we write.
+
+        ld b, a                 ; Save the output value
+        ld c, 0BFh              ; Control port
+
+        ld hl, (vramadr)
+        ld a, 078h              ; Set nametable base bits
+        or h                    ; Get remaining bits
+
+        out (c), l              ; Output lower-order bits
+        out (c), a              ; Output upper bits + control
+
+        ld a, b                 ; Put value back in A
+        sub 020h                ; Shift into our font range
+
+        ld c, 0BEh
+        out (c), a              ; Output the character   
+
+        ld a, b                 ; Put value back in A... again
+
+        ld b, 1
+        out (c), b
+
+        ; Move cursor forward
+
+        push af
+        ld a, (cursorx)
+        inc a
+        ld (cursorx), a
+        pop af
+
+        ; Update VRAM pointer
+
+        inc hl
+        inc hl
+        ld (vramadr), hl        
+
+        ;
+        ; Now the fun computation
+        ;
+
+doneprint:
+
+        ; Check if this was a carriage return.
+
+        cp 13
+        jp z, nextline
+
+        ; Check if we're at the end of the line
+
+        ld a, (cursorx)        
+        cp 32
+        jp z, nextline
+
+        pop hl
+        pop de
+        pop bc
+        pop af        
+
+        ret
+
+        ;
+        ; Here we do the job of scrolling the display, computing the
+        ; new VRAM address, and all that fun stuff.
+        ;
+
+nextline:
+        ; Increase the VRAM position
+
+        ld hl, (vramadr)
+
+        ; Get the cursor position and find out how far it was to the
+        ; end of the line.
+
+        ld a, (cursorx)
+        ld b, a
+        ld a, 32
+        sub b
+
+        ; Now, double this and add it to HL.  This is the new address.
+
+        sla a
+
+        ld c, a
+        ld b, 0
+
+        ; Fill the rest of the line
+
+        call namefill
+
+        ; Now create new address.
+
+        add hl, bc
+
+        ; Next, check if we're past the end of the screen.
+
+        ccf
+        push hl
+
+        ld bc, 05C0h
+        sbc hl, bc
+        jp m, nosetscroll
+
+        ; If we are, set the scroll flag on... we scroll from now on.
+
+        ld a, 1
+        ld (scrollf), a
+
+nosetscroll:
+        pop hl
+        push hl
+
+        ; Next, check if we're at the end of VRAM
+
+        ld bc, 0700h
+        sbc hl, bc
+
+        pop hl
+
+        jp m, saveadr
+
+        ; If we are, return to the top of VRAM.
+
+        ld hl, 00h
+
+        ; Now, save our VRAM address.        
+saveadr:
+        ld (vramadr), hl
+
+        ; Clear the new line
+        
+        ld bc, 040h
+
+        call namefill
+
+        ; Load the scroll flag and check if it's set.
+
+        ld a, (scrollf)
+        cp 0
+        jp z, noscroll
+
+        ; If it is, increase the scroll value, and wrap at 28.
+
+        ld a, (scroll)
+        inc a
+        cp 28
+        jp nz, doscroll
+        ld a, 0
+
+doscroll:
+        ; Now, write out scroll value out to the VDP.
+
+        ld (scroll), a
+
+        sla a
+        sla a
+        sla a
+
+        ld c, 0BFh
+        out (c), a
+
+        ld a, 089h
+        out (c), a       
+
+noscroll:
+        ; Reset the cursor X position to 0
+
+        ld a, 0
+        ld (cursorx), a
+
+        pop hl
+        pop de
+        pop bc
+        pop af
+
+        ret
+
+;
+; Fill the nametable from HL with BC bytes.
+;
+
+namefill:
+        push af
+        push bc
+        push de
+        push hl
+
+        ; Wait for blanking period
+
+        ld a, b
+        or c
+        jp z, zeroret
+
+        push bc                 ; Save the counter for later.
+
+        ld c, 0BFh              ; Control port
+
+        ld a, 078h              ; Set nametable base bits
+        or h                    ; Get remaining bits
+
+        out (c), l              ; Output lower-order bits
+        out (c), a              ; Output upper bits + control
+
+        ; Now, zero out the region
+
+        pop hl                  ; Get our counter
+
+        ld a, 0
+        ld de, 1
+        ld c, 0BEh
+
+        ccf
+
+zeroloop:
+        out (c), a              ; Output the character
+        sbc hl, de
+
+        jp nz, zeroloop
+
+zeroret:
+        pop hl
+        pop de
+        pop bc
+        pop af
+
+        ret

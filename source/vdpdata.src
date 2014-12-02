@@ -1,0 +1,56 @@
+vdpregs:
+
+db 004h
+db 080h
+db 0c2h
+db 081h
+db 0ffh
+db 082h
+db 0ffh
+db 085h
+db 000h
+db 086h
+db 002h
+db 087h
+db 000h
+db 088h
+db 000h
+db 089h
+db 000h
+db 08ah
+db 000h
+
+palette:
+
+db 000h
+db 030h
+db 00ch
+db 003h
+db 03ch
+db 033h
+db 00fh
+db 016h
+db 019h
+db 006h
+db 035h
+db 021h
+db 00dh
+db 037h
+db 023h
+db 03fh
+db 000h
+db 030h
+db 00ch
+db 003h
+db 03ch
+db 033h
+db 00fh
+db 016h
+db 019h
+db 006h
+db 035h
+db 021h
+db 00dh
+db 037h
+db 023h
+db 007h
