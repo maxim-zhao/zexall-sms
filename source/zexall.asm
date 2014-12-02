@@ -15,6 +15,8 @@
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
+; 03-May-2007: (Rene S. Dare)
+; + Added two moving slashes to animate the screen when Zexall is under internal processing. :)
 ;
 ; 09-February-2006: (Eric R. Quinn)
 ; + Fixed tests alu8x, cpd1, ld8ix1, id8ix2, ld8ix3, st8ix1, st8ix2, and st8ix3, that
@@ -157,6 +159,7 @@ retn
 .define VRAMAdr $C304
 .define Scroll  $C306
 .define ScrollF $C307
+.define PrintSl $C390
 .define Test    $C400
 
 .define PauseFlag $d000
@@ -910,6 +913,8 @@ stabd:
 ; Starts test pointed to by (hl)
 StartTest:
   push hl
+    xor a
+    ld (PrintSl),a
     ld a,(hl)  ; get pointer to test
     inc hl
     ld h,(hl)
@@ -955,6 +960,7 @@ StartTest:
       ld a,(Test+IUTCode-TestCode+1)
       cp $76
    +: call nz,Test    ; execute the Test instruction
+      call smsprintslash
   ++: call count      ; increment the Counter
       call nz,shift   ; shift the scan bit
     pop hl  ; pointer to Test case
@@ -1913,6 +1919,92 @@ WaitForVBlank:
   pop bc
   pop af
   ret
+
+
+; Code to print slash between executions
+smsprintslash:
+  push af
+  
+    ld a,(PrintSl)
+    inc a
+    ld (PrintSl),a
+    cp $2f
+    jr nz,goprintnx
+    call printslashvblank
+
+goprintnx:
+    cp $5c
+    jr nz,doneprintsl
+    call printslashvblank
+
+doneprintsl:
+
+  pop af
+  ret
+
+printslashvblank:
+  push af
+  push bc
+  push de
+  push hl
+
+    call WaitForVBlank
+
+    ; First, write the character (in a) to the screen
+    ; If it's a carriage return, skip it.
+    cp 13
+    jp z,doneprint
+    ; Otherwise, we write.
+    ; Print the first slash
+    ld b,a
+    ld c,$bf      ; Control port
+    ld hl,(VRAMAdr)
+    ld a,$78      ; Set nametable base bits
+    or h          ; Get remaining bits
+
+    out (c),l     ; Output lower-order bits
+    out (c),a     ; Output upper bits + control
+
+    ld a,b        ; Put value back in A
+    sub $20       ; Shift into our font range
+
+    ld c,$be
+    out (c),a     ; Output the character
+
+    ld a,b        ; Put value back in A... again
+
+    ld b,1
+    out (c),b
+
+    ; Print the second slash
+    ld b,a
+    ld c,$bf      ; Control port
+    ld hl,(VRAMAdr)
+    inc hl
+    inc hl
+    ld a,$78      ; Set nametable base bits
+    or h          ; Get remaining bits
+
+    out (c),l     ; Output lower-order bits
+    out (c),a     ; Output upper bits + control
+
+    ld a,b        ; Put value back in A
+    sub $20       ; Shift into our font range
+
+    ld c,$be
+    out (c),a     ; Output the character
+
+    ld a,b        ; Put value back in A... again
+
+    ld b,1
+    out (c),b
+
+  pop hl
+  pop de
+  pop bc
+  pop af
+  ret
+
 
 ; Code to print a character on the screen. Does stuff like handle
 ; line feeds, scrolling, etc.
