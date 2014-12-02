@@ -1,6 +1,6 @@
 .define FastTestsFirst 1		; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0	; if 1 then output is printed SDSC Debug console instead of SMS VDP.
-.define FlagMask %11111111		; Mask for flag register
+.define FlagMask %11010111		; Mask for flag register
 ;                 SZXHXPNC
 ;                 |||||||`- Carry
 ;                 ||||||`-- Add/subtract
@@ -15,10 +15,6 @@
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
-; 13-November-2010: (FluBBa)
-; + Fixed compilation when UseSDSCDebugConsole is set to 1
-; + Added correct CRCs for testing ALL flags (including the undocumented ones).
-;
 ; 03-May-2007: (Rene S. Dare)
 ; + Added two moving slashes to animate the screen when Zexall is under internal processing. :)
 ;
@@ -292,8 +288,7 @@ adc16:
   TestData $ed,$42,0,0,$832c,$4f88,$f22b,$b339,$7e1f,$1563,$d3,$89,$465e
   TestData 0,$38,0,0,0,0,0,$f821,0,0,0,0,0 ; (1024 cycles)
   TestData 0,0,0,0,0,0,0,-1,-1,-1,$d7,0,-1 ; (38 cycles)
-;  CRC $f39089a0 ; (FluBBa): Old CRC for documented flags
-  CRC $d48ad519
+  CRC $f39089a0
   MessageString "<adc,sbc> hl,<bc,de,hl,sp>..."
 
 ; add hl,<bc,de,hl,sp> (19,456 cycles)
@@ -302,8 +297,7 @@ add16:
   TestData 9,0,0,0,$c4a5,$c4c7,$d226,$a050,$58ea,$8566,$c6,$de,$9bc9
   TestData $30,0,0,0,0,0,0,$f821,0,0,0,0,0 ; (512 cycles)
   TestData 0,0,0,0,0,0,0,-1,-1,-1,$d7,0,-1 ; (38 cycles)
-;  CRC $1165fc90 ; (FluBBa): Old CRC for documented flags
-  CRC $d9a4ca05
+  CRC $1165fc90
   MessageString "add hl,<bc,de,hl,sp>........."
 
 ; add ix,<bc,de,ix,sp> (19,456 cycles)
@@ -312,8 +306,7 @@ add16x:
   TestData $dd,9,0,0,$ddac,$c294,$635b,$33d3,$6a76,$fa20,$94,$68,$36f5
   TestData 0,$30,0,0,0,0,$f821,0,0,0,0,0,0 ; (512 cycles)
   TestData 0,0,0,0,0,0,-1,0,-1,-1,$d7,0,-1 ; (38 cycles)
-;  CRC $c359f7a2 ; (FluBBa): Old CRC for documented flags
-  CRC $b1df8ec0
+  CRC $c359f7a2
   MessageString "add ix,<bc,de,ix,sp>........."
 
 ; add iy,<bc,de,iy,sp> (19,456 cycles)
@@ -322,8 +315,7 @@ add16y:
   TestData $fd,9,0,0,$c7c2,$f407,$51c1,$3e96,$0bf4,$510f,$92,$1e,$71ea
   TestData 0,$30,0,0,0,$f821,0,0,0,0,0,0,0 ; (512 cycles)
   TestData 0,0,0,0,0,-1,0,0,-1,-1,$d7,0,-1 ; (38 cycles)
-;  CRC $5fc828e9 ; (FluBBa): Old CRC for documented flags
-  CRC $39c8589b
+  CRC $5fc828e9
   MessageString "add iy,<bc,de,iy,sp>........."
 
 ; aluop a,nn (28,672 cycles)
@@ -332,8 +324,7 @@ alu8i:
   TestData $c6,0,0,0,$9140,$7e3c,$7a67,$df6d,$5b61,$0b29,$10,$66,$85b2
   TestData $38,0,0,0,0,0,0,0,0,0,0,-1,0  ; (2048 cycles)
   TestData 0,-1,0,0,0,0,0,0,0,0,$d7,0,0  ; (14 cycles)
-;  CRC $48799360 ; (FluBBa): Old CRC for documented flags
-  CRC $51c19c2e
+  CRC $48799360
   MessageString "aluop a,nn..................."
 
 ; aluop a,<b,c,d,e,h,l,(hl),a> (753,664 cycles)
@@ -342,8 +333,7 @@ alu8r:
   TestData $80,0,0,0,$c53e,$573a,$4c4d,MachineStateBeforeTest,$e309,$a666,$d0,$3b,$adbb
   TestData $3f,0,0,0,0,0,0,0,0,0,0,-1,0  ; (16,384 cycles)
   TestData 0,0,0,0,$ff,0,0,0,-1,-1,$d7,0,0 ; (46 cycles)
-;  CRC $5ddf949b ; (FluBBa): Old CRC for documented flags
-  CRC $1ec10a46
+  CRC $5ddf949b
   MessageString "aluop a,<b,c,d,e,h,l,(hl),a>."
 
 ; aluop a,<ixh,ixl,iyh,iyl> (376,832 cycles)
@@ -352,8 +342,7 @@ alu8rx:
   TestData $dd,$84,0,0,$d6f7,$c76e,$accf,$2847,$22dd,$c035,$c5,$38,$234b
   TestData $20,$39,0,0,0,0,0,0,0,0,0,-1,0 ; (8,192 cycles)
   TestData 0,0,0,0,$ff,0,0,0,-1,-1,$d7,0,0 ; (46 cycles)
-;  CRC $a4026d5a ; (FluBBa): Old CRC for documented flags
-  CRC $a886cc44
+  CRC $a4026d5a
   MessageString "aluop a,<ixh,ixl,iyh,iyl>...."
 
 ; aluop a,(<ix,iy>+1) (229,376 cycles)
@@ -365,8 +354,7 @@ alu8x:
   TestData $20,$38,0,0,0,1,1,0,0,0,0,-1,0 ; (16384 cycles)
   TestData 0,0,0,0,$ff,0,0,0,0,0,$d7,0,0  ; (14 cycles)
 ;  CRC $b823fbc7	; (erquinn): Old CRC before state-leak fix
-;  CRC $2bc2d52d ; (FluBBa): Old CRC for documented flags
-  CRC $e334341a
+  CRC $2bc2d52d
   MessageString "aluop a,(<ix,iy>+1).........."
 
 ; bit n,(<ix,iy>+1) (2048 cycles)
@@ -384,8 +372,7 @@ bitz80:
   TestData $cb,$40,0,0,$3ef1,$9dfc,$7acc,MachineStateBeforeTest,$be61,$7a86,$50,$24,$1998
   TestData 0,$3f,0,0,0,0,0,0,0,0,$53,0,0  ; (1024 cycles)
   TestData 0,0,0,0,$ff,0,0,0,-1,-1,0,-1,0  ; (48 cycles)
-;  CRC $4b37451d ; (FluBBa): Old CRC for documented flags
-  CRC $a937a161
+  CRC $4b37451d
   MessageString "bit n,<b,c,d,e,h,l,(hl),a>..."
 
 ; cpd<r> (1) (6144 cycles)
@@ -397,8 +384,7 @@ cpd1:
   TestData 0,$10,0,0,0,0,0,0,0,010,0,-1,0  ; (1024 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
 ;  CRC $437db7ff	; (erquinn): Old CRC before state-leak fix
-;  CRC $6b7eb6bf ; (FluBBa): Old CRC for documented flags
-  CRC $4366d8a5
+  CRC $6b7eb6bf
   MessageString "cpd<r>......................."
 
 ; cpi<r> (1) (6144 cycles)
@@ -407,8 +393,7 @@ cpi1:
   TestData $ed,$a1,0,0,$4d48,$af4a,$906b,MachineStateBeforeTest,$4e71,1,$93,$6a,$907c
   TestData 0,$10,0,0,0,0,0,0,0,010,0,-1,0  ; (1024 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $74baf310 ; (FluBBa): Old CRC for documented flags
-  CRC $f52c5c23
+  CRC $74baf310
   MessageString "cpi<r>......................."
 
 ; <daa,cpl,scf,ccf> (65,536 cycles)
@@ -417,8 +402,7 @@ daaop:
   TestData $27,0,0,0,$2141,$09fa,$1d60,$a559,$8d5b,$9079,$04,$8e,$299d
   TestData $18,0,0,0,0,0,0,0,0,0,$d7,-1,0 ; (65,536 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,0,0,0  ; (1 cycle)
-;  CRC $9b4ba675 ; (FluBBa): Old CRC for documented flags
-  CRC $6d2dd213
+  CRC $9b4ba675
   MessageString "<daa,cpl,scf,ccf>............"
 
 ; <inc,dec> a (3072 cycles)
@@ -427,8 +411,7 @@ inca:
   TestData $3c,0,0,0,$4adf,$d5d8,$e598,$8a2b,$a7b0,$431b,$44,$5a,$d030
   TestData $01,0,0,0,0,0,0,0,0,0,0,-1,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $d18815a4 ; (FluBBa): Old CRC for documented flags
-  CRC $81fa8100 
+  CRC $d18815a4 
   MessageString "<inc,dec> a.................."
 
 ; <inc,dec> b (3072 cycles)
@@ -437,8 +420,7 @@ incb:
   TestData $04,0,0,0,$d623,$432d,$7a61,$8180,$5a86,$1e85,$86,$58,$9bbb
   TestData $01,0,0,0,0,0,0,0,0,$ff00,0,0,0 ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $5f682264 ; (FluBBa): Old CRC for documented flags
-  CRC $77f35a73 
+  CRC $5f682264 
   MessageString "<inc,dec> b.................."
 
 ; <inc,dec> bc (1536 cycles)
@@ -456,8 +438,7 @@ incc:
   TestData $0c,0,0,0,$d789,$0935,$055b,$9f85,$8b27,$d208,$95,$05,$0660
   TestData $01,0,0,0,0,0,0,0,0,$ff,0,0,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $c284554c ; (FluBBa): Old CRC for documented flags
-  CRC $1af612a7 
+  CRC $c284554c 
   MessageString "<inc,dec> c.................."
 
 ; <inc,dec> d (3072 cycles)
@@ -466,8 +447,7 @@ incd:
   TestData $14,0,0,0,$a0ea,$5fba,$65fb,$981c,$38cc,$debc,$43,$5c,$03bd
   TestData $01,0,0,0,0,0,0,0,$ff00,0,0,0,0 ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $4523de10 ; (FluBBa): Old CRC for documented flags
-  CRC $d146bf51 
+  CRC $4523de10 
   MessageString "<inc,dec> d.................."
 
 ; <inc,dec> de (1536 cycles)
@@ -485,8 +465,7 @@ ince:
   TestData $1c,0,0,0,$602f,$4c0d,$2402,$e2f5,$a0f4,$a10a,$13,$32,$5925
   TestData $01,0,0,0,0,0,0,0,$ff,0,0,0,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $e175afcc ; (FluBBa): Old CRC for documented flags
-  CRC $ca8c6ac2 
+  CRC $e175afcc 
   MessageString "<inc,dec> e.................."
 
 ; <inc,dec> h (3072 cycles)
@@ -495,8 +474,7 @@ inch:
   TestData $24,0,0,0,$1506,$f2eb,$e8dd,$262b,$11a6,$bc1a,$17,$06,$2818
   TestData $01,0,0,0,0,0,0,$ff00,0,0,0,0,0 ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $1ced847d ; (FluBBa): Old CRC for documented flags
-  CRC $560f955e 
+  CRC $1ced847d 
   MessageString "<inc,dec> h.................."
 
 ; <inc,dec> hl (1536 cycles)
@@ -532,8 +510,7 @@ incl:
   TestData $2c,0,0,0,$8031,$a520,$4356,$b409,$f4c1,$dfa2,$d1,$3c,$3ea2
   TestData $01,0,0,0,0,0,0,$ff,0,0,0,0,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $56cd06f3 ; (FluBBa): Old CRC for documented flags
-  CRC $a0a1b49f 
+  CRC $56cd06f3 
   MessageString "<inc,dec> l.................."
 
 ; <inc,dec> (hl) (3072 cycles)
@@ -542,8 +519,7 @@ incm:
   TestData $34,0,0,0,$b856,$0c7c,$e53e,MachineStateBeforeTest,$877e,$da58,$15,$5c,$1f37
   TestData $01,0,0,0,$ff,0,0,0,0,0,0,0,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $46761d6b ; (FluBBa): Old CRC for documented flags
-  CRC $d6659f4a 
+  CRC $46761d6b 
   MessageString "<inc,dec> (hl)..............."
 
 ; <inc,dec> sp (1536 cycles)
@@ -561,8 +537,7 @@ incx:
   TestData $dd,$34,1,0,$fa6e,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$2c28,$8894,$5057,$16,$33,$286f
   TestData $20,1,0,0,$ff,0,0,0,0,0,0,0,0  ; (1024 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $8897c715 ; (FluBBa): Old CRC for documented flags
-  CRC $a35a7b8f 
+  CRC $8897c715 
   MessageString "<inc,dec> (<ix,iy>+1)........"
 
 ; <inc,dec> ixh (3072 cycles)
@@ -598,8 +573,7 @@ incyl:
   TestData $dd,$2c,0,0,$d7c6,$62d5,$a09e,$7039,$3e7e,$9f12,$90,$d9,$220f
   TestData 0,1,0,0,$ff,0,0,0,0,0,0,0,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $fbcbba95 ; (FluBBa): Old CRC for documented flags
-  CRC $36c11e75 
+  CRC $fbcbba95 
   MessageString "<inc,dec> iyl................"
 
 ; ld <bc,de>,(nnnn) (32 cycles)
@@ -806,8 +780,7 @@ ldd2:
   TestData $ed,$a8,0,0,$f12e,$eb2a,$d5ba,MachineStateBeforeTest+3,MachineStateBeforeTest+1,2,$47,$ff,$fbe4
   TestData 0,$10,0,0,0,0,0,0,0,0,0,0,0  ; (2 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,$d7,0,0  ; (22 cycles)
-;  CRC $e22ab30f ; (FluBBa): Old CRC for documented flags
-  CRC $8167f03a 
+  CRC $e22ab30f 
   MessageString "ldd<r> (2)..................."
 
 ; ldi<r> (1) (44 cycles)
@@ -816,8 +789,7 @@ ldi1:
   TestData $ed,$a0,0,0,$fe30,$03cd,$0006,MachineStateBeforeTest+2,MachineStateBeforeTest,1,$04,$60,$2688
   TestData 0,$10,0,0,0,0,0,0,0,0,0,0,0  ; (2 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,$d7,0,0  ; (22 cycles)
-;  CRC $470098d4 ; (FluBBa): Old CRC for documented flags
-  CRC $2a3fdeb0 
+  CRC $470098d4 
   MessageString "ldi<r> (1)..................."
 
 ; ldi<r> (2) (44 cycles)
@@ -826,8 +798,7 @@ ldi2:
   TestData $ed,$a0,0,0,$4ace,$c26e,$b188,MachineStateBeforeTest+2,MachineStateBeforeTest,2,$14,$2d,$a39f
   TestData 0,$10,0,0,0,0,0,0,0,0,0,0,0  ; (2 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,$d7,0,0  ; (22 cycles)
-;  CRC $382fa523 ; (FluBBa): Old CRC for documented flags
-  CRC $3a9cfc96 
+  CRC $382fa523 
   MessageString "ldi<r> (2)..................."
 
 ; neg (16,384 cycles)
@@ -836,8 +807,7 @@ negop:
   TestData $ed,$44,0,0,$38a2,$5f6b,$d934,$57e4,$d2d6,$4642,$43,$5a,$09cc
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,-1,0  ; (16,384 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,0,0,0  ; (1 cycle)
-;  CRC $6a3c3bbd ; (FluBBa): Old CRC for documented flags
-  CRC $d638dd6a 
+  CRC $6a3c3bbd 
   MessageString "neg.........................."
 
 ; <rld,rrd> (7168 cycles)
@@ -846,8 +816,7 @@ rldop:
   TestData $ed,$67,0,0,$91cb,$c48b,$fa62,MachineStateBeforeTest,$e720,$b479,$40,$06,$8ae2
   TestData 0,8,0,0,$ff,0,0,0,0,0,0,0,0  ; (512 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,-1,0  ; (14 cycles)
-;  CRC $f7da9257 ; (FluBBa): Old CRC for documented flags
-  CRC $9d030f06 
+  CRC $f7da9257 
   MessageString "<rrd,rld>...................."
 
 ; <rlca,rrca,rla,rra> (6144 cycles)
@@ -856,8 +825,7 @@ rot8080:
   TestData 7,0,0,0,$cb92,$6d43,$0a90,$c284,$0c53,$f50e,$91,$eb,$40fc
   TestData $18,0,0,0,0,0,0,0,0,0,0,-1,0  ; (1024 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-;  CRC $251330ae ; (FluBBa): Old CRC for documented flags
-  CRC $9ba3807c 
+  CRC $251330ae 
   MessageString "<rlca,rrca,rla,rra>.........."
 
 ; shift/rotate (<ix,iy>+1) (416 cycles)
@@ -866,8 +834,7 @@ rotxy:
   TestData $dd,$cb,1,6,$ddaf,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$ff3c,$dbf6,$94f4,$82,$80,$61d9
   TestData $20,0,0,$38,0,0,0,0,0,0,$80,0,0 ; (32 cycles)
   TestData 0,0,0,0,$ff,0,0,0,0,0,$57,0,0  ; (13 cycles)
-;  CRC $b40e85cb ; (FluBBa): Old CRC for documented flags
-  CRC $b4347c81 
+  CRC $b40e85cb 
   MessageString "shf/rot (<ix,iy>+1).........."
 
 ; shift/rotate <b,c,d,e,h,l,(hl),a> (6784 cycles)
@@ -876,8 +843,7 @@ rotz80:
   TestData $cb,0,0,0,$cceb,$5d4a,$e007,MachineStateBeforeTest,$1395,$30ee,$43,$78,$3dad
   TestData 0,$3f,0,0,0,0,0,0,0,0,$80,0,0  ; (128 cycles)
   TestData 0,0,0,0,$ff,0,0,0,-1,-1,$57,-1,0 ; (53 cycles)
-;  CRC $ee0c828b ; (FluBBa): Old CRC for documented flags
-  CRC $150c42ed 
+  CRC $ee0c828b 
   MessageString "shf/rot <b,c,d,e,h,l,(hl),a>."
 
 ; <set,res> n,<b,c,d,e,h,l,(hl),a> (7936 cycles)
