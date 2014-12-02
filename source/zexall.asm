@@ -1,3 +1,7 @@
+;.define USE_SDSC_DEBUG_CONSOLE 1	; Un-comment to have output printed
+					; to SDSC Debug console instead of
+					; SMS VDP.
+
 .define FastTestsFirst 1    ; if 1 then tests are ordered with the fastest to complete first
 .define FlagMask %11010111  ; Mask for flag register
 ;                 SZXHXPNC
@@ -14,6 +18,10 @@
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
+;
+; 11-June-2003: (Eric R. Quinn) Modified to use SDSC Debug Console (instead of
+;				SMS VDP) for output
+; + Define USE_SDSC_DEBUG_CONSOLE to 1 to use that console, otherwise uses VDP
 ;
 ; 18-Mar-2003: Tweaked a bit (Maxim)
 ; + Moved screen right by 8 to make it show on a real TV better
@@ -749,7 +757,7 @@ ldd2:
 ; ldi<r> (1) (44 cycles)
 ldi1: 
   .db FlagMask
-  TestData $ed,$a0,0,0,$fe30,$03cd,06$58,MachineStateBeforeTest+2,MachineStateBeforeTest,1,$04,$60,$2688
+  TestData $ed,$a0,0,0,$fe30,$03cd,$0006,MachineStateBeforeTest+2,MachineStateBeforeTest,1,$04,$60,$2688
   TestData 0,$10,0,0,0,0,0,0,0,0,0,0,0  ; (2 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,$d7,0,0  ; (22 cycles)
   CRC $470098d4 
@@ -1339,7 +1347,11 @@ PrintChar:
   ld a,b  ; get char back
   cp 10  ; ignore LF, CR auto-LFs
   jr z,OutputTextdone
+.ifdef USE_SDSC_DEBUG_CONSOLE
+  call sdscprint
+.else
   call smsprint
+.endif ; USE_SDSC_DEBUG_CONSOLE
   jr OutputTextdone
 
 PrintString:
@@ -1347,7 +1359,11 @@ PrintString:
   cp '$'
   jr z,OutputTextdone
   cp 10
-  call nz,$10
+.ifdef USE_SDSC_DEBUG_CONSOLE
+  call nz, sdscprint
+.else
+  call nz,smsprint
+.endif ; USE_SDSC_DEBUG_CONSOLE
   inc de
   jr PrintString
 
@@ -1691,6 +1707,67 @@ CRCLookupTable:
   CRC $2d02ef8d
 
 ; SMS-specific stuff
+
+
+; (erq) Moved install to top, since it is the same for both
+; (erq) VDP and SDSC Debug Console versions of ZEXALL.
+
+; Copies the Test code into modifiable memory.
+; This is because the code is self-modifying.
+Install:
+  push bc
+  push de
+  push hl
+    ld de,Test
+    ld hl,TestCode
+    ld bc,TestCodeend - TestCode
+    ldir
+  pop hl
+  pop de
+  pop bc
+
+  ret
+
+
+.ifdef USE_SDSC_DEBUG_CONSOLE
+
+.include "sdsc.inc"
+
+; (erq) Re-write SMSInitialise to remove VDP-specific actions, and
+; (erq) replace with debug console initialization code.
+
+SMSInitialise:
+  ; Disable joystick ports.  This enables ports in region $C0 through $FF
+  ; allowing Debug Console ports at $FC and $FD to be visible.
+  ; WARNING: The following assumes ZEXALL is being run from the SMS
+  ; cartridge port.
+  ;
+  LD	A, $AF
+  OUT	($3E), A
+
+
+  ; Clear Debug Console screen
+  ;
+  LD	A, SDSC_DEBUGCONSOLE_COMMAND_CLEARSCREEN
+  OUT	(SDSC_OUTPORT_DEBUGCONSOLE_COMMAND), A
+
+  call Install ; first, install test code into RAM
+
+  ret
+
+
+sdscprint:
+  CP	$0D
+  JP	NZ, sdscprint_out
+  LD	A, $0A
+
+sdscprint_out:
+  OUT	(SDSC_OUTPORT_DEBUGCONSOLE_DATA), A
+
+  ret
+
+.else
+
 font:
 .include "BBC Micro font.inc"
 fontend:
@@ -1785,22 +1862,6 @@ InitCursor:
   ld (VRAMAdr),hl
   ld (Scroll),a
   ld (ScrollF), a
-  ret
-
-; Copies the Test code into modifiable memory.
-; This is because the code is self-modifying.
-Install:
-  push bc
-  push de
-  push hl
-    ld de,Test
-    ld hl,TestCode
-    ld bc,TestCodeend - TestCode
-    ldir
-  pop hl
-  pop de
-  pop bc
-
   ret
 
 ; Code to wait for Start of blanking period
@@ -1968,10 +2029,12 @@ namefill:
   pop af
   ret
 
+.endif ; USE_SDSC_DEBUG_CONSOLE
+
 ;==============================================================
 ; SDSC tag and SMS rom header
 ;==============================================================
-.sdsctag 0.11,"Z80 Intruction Exerciser",SDSCNotes,"Maxim"
+.sdsctag 0.11,"Z80 Intruction Exerciser",SDSCNotes,"Maxim, Eric R. Quinn"
 
 SDSCNotes:
 .db "Based on ZEXALL by Frank Cringle, "

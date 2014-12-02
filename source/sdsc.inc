@@ -1,0 +1,26 @@
+; Eric R. Quinn
+; May 6, 2002
+; sdsc.inc
+;1234567890123456789012345678901234567890123456789012345678901234567890123456789
+;
+; Version 0.00: May 6, 2002
+; -------------------------
+;
+;	+ Initial version
+;
+
+
+; "OFFSETS" are relative to the beginning of a ROM page or a Page Frame
+;
+.DEFINE SDSC_OFFSET_SDSC_TAG			$3FE0
+
+
+; I/O Port Definitions
+;
+.DEFINE	SDSC_OUTPORT_DEBUGCONSOLE_COMMAND	$0FC
+.DEFINE	SDSC_OUTPORT_DEBUGCONSOLE_DATA		$0FD
+
+
+.DEFINE	SDSC_DEBUGCONSOLE_COMMAND_CLEARSCREEN	$02
+
+; END sdsc.inc
