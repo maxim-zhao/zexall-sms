@@ -19,7 +19,7 @@ vdpregs:
 ;    ||`------ VBlank interrupts
 ;    |`------- Enable display
 ;    `-------- Must be set (VRAM size bit)
-.db NameTableAddress>>10,$82
+.db (NameTableAddress>>10)|$01,$82	; (erq) OR data with $01 for 315-5124 compatibility
 .db SpriteTableAddress>>7,$85
 .db SpriteSet<<2,$86
 .db $0,$87

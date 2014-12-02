@@ -1,9 +1,6 @@
-;.define USE_SDSC_DEBUG_CONSOLE 1	; Un-comment to have output printed
-					; to SDSC Debug console instead of
-					; SMS VDP.
-
-.define FastTestsFirst 1    ; if 1 then tests are ordered with the fastest to complete first
-.define FlagMask %11010111  ; Mask for flag register
+.define FastTestsFirst 1		; if 1 then tests are ordered with the fastest to complete first
+.define UseSDSCDebugConsole 0	; if 1 then output is printed SDSC Debug console instead of SMS VDP.
+.define FlagMask %11010111		; Mask for flag register
 ;                 SZXHXPNC
 ;                 |||||||`- Carry
 ;                 ||||||`-- Add/subtract
@@ -19,8 +16,20 @@
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
 ;
-; 11-June-2003: (Eric R. Quinn) Modified to use SDSC Debug Console (instead of
-;				SMS VDP) for output
+; 09-February-2006: (Eric R. Quinn)
+; + Fixed tests alu8x, cpd1, ld8ix1, id8ix2, ld8ix3, st8ix1, st8ix2, and st8ix3, that
+;	all accessed addresses outside of the MachineStateBeforeTest region.  This caused
+;	a state leak across the load and store tests.  Also, it should be noted that
+;	the test coverage of these tests is lacking.  These tests do not test that
+;	negative displacements work correctly.  There doesn't seem to be an easy way
+;	to test negative displacements (given the count/shift method used) without
+;	creating separate tests.
+; + Fixed VDP initialization to be compatible with SMS1 VDP (315-5124)
+; + Changed USE_SDSC_DEBUG_CONSOLE to UseSDSCDebugConsole to better match existing
+;	code style
+;
+; 11-June-2003: (Eric R. Quinn)
+; + Modified to use SDSC Debug Console (instead of SMS VDP) for output
 ; + Define USE_SDSC_DEBUG_CONSOLE to 1 to use that console, otherwise uses VDP
 ;
 ; 18-Mar-2003: Tweaked a bit (Maxim)
@@ -125,7 +134,9 @@ retn
   CRCValue   dsb 4   ; CRC value
 .ends
 .define MachineStateBeforeTestHi  MachineStateBeforeTest >> 8 ;/ $100
-.define MachineStateBeforeTestLo  MachineStateBeforeTest & $ff*/
+.define MachineStateBeforeTestLo  MachineStateBeforeTest & $ff
+*/
+
 .define CntBit  $C000
 .define CntByt  $C001
 .define ShfBit  $C003
@@ -227,8 +238,8 @@ Start:
 Tests:
 .if FastTestsFirst == 1
 .dw ld162,ld163,ld166,ld167,ld161,ld164,ld16ix,ld8imx,ld8ixy,lda,ldd1
-.dw ldd2,ldi1,ldi2,ld8bd,ld168,ld16im,ld8im,ld165,st8ix3,stabd,ld8ix3
-.dw ld8ix2,st8ix2,rotxy,ld8ix1,st8ix1,incc,incde,inchl,incix,inciy
+.dw ldd2,ldi1,ldi2,ld8bd,ld168,ld16im,ld8im,ld165,stabd,st8ix3,ld8ix3
+.dw rotxy,ld8ix2,st8ix2,ld8ix1,st8ix1,incc,incde,inchl,incix,inciy
 .dw incsp,srzx,bitx,inca,incb,incbc,incd,ince,inch,incl,incm,incxh
 .dw incxl,incyh,incyl,ld8rr,cpd1,cpi1,incx,rot8080,rotz80,ld8rrx,rldop
 .dw srz80,negop,add16,add16x,add16y,alu8i,adc16,bitz80,daaop,alu8x
@@ -334,10 +345,13 @@ alu8rx:
 ; aluop a,(<ix,iy>+1) (229,376 cycles)
 alu8x:
   .db FlagMask
-  TestData $dd,$86,1,0,$90b7,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$32fd,$406e,$c1dc,$45,$6e,$e5fa
-  TestData $20,$38,0,0,0,1,1,0,0,0,0,-1,0 ; (16,384 cycles)
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$86,$01,0,$90b7,MachineStateBeforeTest,MachineStateBeforeTest,$32fd,$406e,$c1dc,$45,$6e,$e5fa
+  TestData $20,$38,0,0,0,1,1,0,0,0,0,-1,0 ; (16384 cycles)
   TestData 0,0,0,0,$ff,0,0,0,0,0,$d7,0,0  ; (14 cycles)
-  CRC $b823fbc7
+;  CRC $b823fbc7	; (erquinn): Old CRC before state-leak fix
+  CRC $2bc2d52d
   MessageString "aluop a,(<ix,iy>+1).........."
 
 ; bit n,(<ix,iy>+1) (2048 cycles)
@@ -361,10 +375,13 @@ bitz80:
 ; cpd<r> (1) (6144 cycles)
 cpd1:
   .db FlagMask
-  TestData $ed,$a9,0,0,$c7b6,$72b4,$18f6,MachineStateBeforeTest+17,$8dbd,1,$c0,$30,$94a3
+  ; (erquinn): Changed initial value for HL from MachineStateBeforeTest+17, which 
+  ;			   overflowed into StackPointerBeforeTest and MachineStateAfterTest regions
+  TestData $ed,$a9,0,0,$c7b6,$72b4,$18f6,MachineStateBeforeTest+14,$8dbd,1,$c0,$30,$94a3
   TestData 0,$10,0,0,0,0,0,0,0,010,0,-1,0  ; (1024 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,$d7,0,0  ; (6 cycles)
-  CRC $437db7ff
+;  CRC $437db7ff	; (erquinn): Old CRC before state-leak fix
+  CRC $6b7eb6bf
   MessageString "cpd<r>......................."
 
 ; cpi<r> (1) (6144 cycles)
@@ -673,31 +690,40 @@ ld8imx:
   CRC $0b6fd95c 
   MessageString "ld (<ix,iy>+1),nn............"
 
-; ld <b,c,d,e>,(<ix,iy>+1) (512 cycles)
+; ld <b,c,d,e>,(<ix,iy>+1) (1024 cycles)
 ld8ix1: 
   .db FlagMask
-  TestData $dd,$46,1,0,$d016,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$4260,$7f39,$0404,$97,$4a,$d085
-  TestData $20,$18,0,0,0,1,1,0,0,0,0,0,0  ; (32 cycles)
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$46,0,0,$d016,MachineStateBeforeTest,MachineStateBeforeTest,$4260,$7f39,$0404,$97,$4a,$d085
+  TestData $20,$18,$01,0,0,1,1,0,0,0,0,0,0  ; (64 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,0,0,0  ; (16 cycles)
-  CRC $18df759e 
+;  CRC $18df759e  	; (erquinn): Old CRC before state-leak fix
+  CRC $6db05c44
   MessageString "ld <b,c,d,e>,(<ix,iy>+1)....."
 
-; ld <h,l>,(<ix,iy>+1) (256 cycles)
+; ld <h,l>,(<ix,iy>+1) (512 cycles)
 ld8ix2: 
   .db FlagMask
-  TestData $dd,$66,1,0,$84e0,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$9c52,$a799,$49b6,$93,$00,$eead
-  TestData $20,$08,0,0,0,1,1,0,0,0,0,0,0  ; (16 cycles)
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$66,0,0,$84e0,MachineStateBeforeTest,MachineStateBeforeTest,$9c52,$a799,$49b6,$93,$00,$eead
+  TestData $20,$08,$01,0,0,1,1,0,0,0,0,0,0  ; (32 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,0,0,0  ; (16 cycles)
-  CRC $0275d849 
+;  CRC $0275d849	; (erquinn): Old CRC before state-leak fix
+  CRC $3e094165
   MessageString "ld <h,l>,(<ix,iy>+1)........."
 
-; ld a,(<ix,iy>+1) (128 cycles)
+; ld a,(<ix,iy>+1) (256 cycles)
 ld8ix3:
   .db FlagMask
-  TestData $dd,$7e,1,0,$d8b6,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$c612,$df07,$9cd0,$43,$a6,$a0e5
-  TestData $20,0,0,0,0,1,1,0,0,0,0,0,0  ; (8 cycles)
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$7e,0,0,$d8b6,MachineStateBeforeTest,MachineStateBeforeTest,$c612,$df07,$9cd0,$43,$a6,$a0e5
+  TestData $20,0,$01,0,0,1,1,0,0,0,0,0,0  ; (16 cycles)
   TestData 0,0,0,0,-1,0,0,0,0,0,0,0,0  ; (16 cycles)
-  CRC $c691fb20 
+;  CRC $c691fb20	; (erquinn): Old CRC before state-leak fix
+  CRC $5407eb38
   MessageString "ld a,(<ix,iy>+1)............."
 
 ; ld <ixh,ixl,iyh,iyl>,nn (32 cycles)
@@ -835,31 +861,40 @@ srzx:
   CRC $177e3cb8 
   MessageString "<set,res> n,(<ix,iy>+1)......"
 
-; ld (<ix,iy>+1),<b,c,d,e> (1024 cycles)
+; ld (<ix,iy>+1),<b,c,d,e> (2048 cycles)
 st8ix1:
   .db FlagMask
-  TestData $dd,$70,1,0,$270d,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$b73a,$887b,$99ee,$86,$70,$ca07
-  TestData $20,$03,0,0,0,1,1,0,0,0,0,0,0  ; (32 cycles)
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$70,0,0,$270d,MachineStateBeforeTest,MachineStateBeforeTest,$b73a,$887b,$99ee,$86,$70,$ca07
+  TestData $20,$03,$01,0,0,1,1,0,0,0,0,0,0  ; (64 cycles)
   TestData 0,0,0,0,0,0,0,0,-1,-1,0,0,0  ; (32 cycles)
-  CRC $0b6eeefd 
+;  CRC $0b6eeefd	; (erquinn): Old CRC before state-leak fix
+  CRC $24c66b95
   MessageString "ld (<ix,iy>+1),<b,c,d,e>....."
 
-; ld (<ix,iy>+1),<h,l> (256 cycles)
+; ld (<ix,iy>+1),<h,l> (512 cycles)
 st8ix2: 
   .db FlagMask
-  TestData $dd,$74,1,0,$b664,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$e8ac,$b5f5,$aafe,$12,$10,$9566
-  TestData $20,$01,0,0,0,1,1,0,0,0,0,0,0  ; (16 cycles)
-  TestData 0,0,0,0,0,0,0,-1,0,0,0,0,0  ; (32 cycles)
-  CRC $58d9048b 
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$74,0,0,$b664,MachineStateBeforeTest,MachineStateBeforeTest,$e8ac,$b5f5,$aafe,$12,$10,$9566
+  TestData $20,$01,$01,0,0,1,1,0,0,0,0,0,0  ; (32 cycles)
+  TestData 0,0,0,0,0,0,0,-1,0,0,0,0,0  ; (16 cycles)
+;  CRC $58d9048b	; (erquinn): Old CRC before state-leak fix
+  CRC $b9b5243c
   MessageString "ld (<ix,iy>+1),<h,l>........."
 
-; ld (<ix,iy>+1),a (64 cycles)
+; ld (<ix,iy>+1),a (128 cycles)
 st8ix3:
   .db FlagMask
-  TestData $dd,$77,1,0,$67af,MachineStateBeforeTest-1,MachineStateBeforeTest-1,$4f13,$0644,$bcd7,$50,$ac,$5faf
-  TestData $20,0,0,0,0,1,1,0,0,0,0,0,0  ; (8 cycles)
+  ; (erquinn): Changed initial value for IX, IY from MachineStateBeforeTest-1, which 
+  ;			   accessed memory outside of MachineStateBeforeTest region
+  TestData $dd,$77,0,0,$67af,MachineStateBeforeTest,MachineStateBeforeTest,$4f13,$0644,$bcd7,$50,$ac,$5faf
+  TestData $20,0,$01,0,0,1,1,0,0,0,0,0,0  ; (16 cycles)
   TestData 0,0,0,0,0,0,0,0,0,0,0,-1,0  ; (8 cycles)
-  CRC $b6657c5e 
+;  CRC $b6657c5e	; (erquinn): Old CRC before state-leak fix
+  CRC $51c0f862
   MessageString "ld (<ix,iy>+1),a............."
 
 ; ld (<bc,de>),a (96 cycles)
@@ -1347,11 +1382,11 @@ PrintChar:
   ld a,b  ; get char back
   cp 10  ; ignore LF, CR auto-LFs
   jr z,OutputTextdone
-.ifdef USE_SDSC_DEBUG_CONSOLE
+.if UseSDSCDebugConsole == 1
   call sdscprint
 .else
   call smsprint
-.endif ; USE_SDSC_DEBUG_CONSOLE
+.endif ; UseSDSCDebugConsole == 1
   jr OutputTextdone
 
 PrintString:
@@ -1359,11 +1394,11 @@ PrintString:
   cp '$'
   jr z,OutputTextdone
   cp 10
-.ifdef USE_SDSC_DEBUG_CONSOLE
+.if UseSDSCDebugConsole == 1
   call nz, sdscprint
 .else
   call nz,smsprint
-.endif ; USE_SDSC_DEBUG_CONSOLE
+.endif ; UseSDSCDebugConsole
   inc de
   jr PrintString
 
@@ -1729,7 +1764,7 @@ Install:
   ret
 
 
-.ifdef USE_SDSC_DEBUG_CONSOLE
+.if UseSDSCDebugConsole == 1
 
 .include "sdsc.inc"
 
@@ -2029,7 +2064,7 @@ namefill:
   pop af
   ret
 
-.endif ; USE_SDSC_DEBUG_CONSOLE
+.endif ; UseSDSCDebugConsole == 1
 
 ;==============================================================
 ; SDSC tag and SMS rom header
