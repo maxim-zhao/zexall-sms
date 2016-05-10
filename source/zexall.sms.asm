@@ -1,6 +1,6 @@
 .define FastTestsFirst 1  ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 0 ; if 0 then undocumented opcodes and flags get exercised too
+.define DocumentedOnly 1 ; if 0 then undocumented opcodes and flags get exercised too
 ;.define IncludeR 1 ; if 1 then R register will be included in state
 
 ; zexall.asm - Z80 instruction set exerciser
@@ -215,7 +215,6 @@ Start:
   ; Initialisation
   call SMSInitialise
   ld de, Message_Title
-  ld c, 9
   call OutputText
 
   ; Run tests, stop when first word of test data is 0000
@@ -229,7 +228,6 @@ Start:
   jp -
 
 +:ld de, Message_Done
-  ld c, 9
   call OutputText
 
 -:jp -  ; Infinite loop to stop program
@@ -274,10 +272,10 @@ Tests:
 .endm
 
 ; Strings with control characters
-.define STREND '$'
+.define STREND 0
 .define NEWLINE 13
 .asciitable
-  map ' ' to '~' = 32
+  map ' ' to '~' = 32 ; Our font mostly covers 7-bit "ASCII"
 .enda
 .macro MessageString
   .asc \1, STREND
@@ -938,7 +936,6 @@ StartTest:
       ld de, 20+20+4 ; skip incmask, scanmask and expcrc
       add hl, de
       ex de, hl
-      ld c, 9
       call OutputText  ; show Test name
       call InitialiseCRC
 
@@ -951,7 +948,7 @@ StartTest:
       jp nz, +
       ld a, (Test+InstructionUnderTest-TestCode+1)
       cp $76
-   +: call nz, Test    ; execute the Test instruction
+   +: call nz, Test    ; execute the test instruction
 .if UseSDSCDebugConsole == 0
       call smsprintslash
 .endif ; UseSDSCDebugConsole == 0
@@ -967,17 +964,14 @@ StartTest:
     push hl  ; save pointer to crc
       ld hl, CRCValue
       ld de, Message_ActualCRC
-      ld c, 9
       call OutputText
       call PrintHex32
       ld de, Message_ExpectedCRC
-      ld c, 9
       call OutputText
     pop hl  ; get pointer to crc back
     call PrintHex32
     ld de, Message_NewLine
-_OK:ld c, 9
-    call OutputText
+_OK:call OutputText
   pop hl
   inc hl
   inc hl
@@ -1325,9 +1319,11 @@ PrintHex4:
     jp c, +
     add a, 'a'-'9'-1
   +:add a, '0'
-    ld e, a
-    ld c, 2
-    call OutputText
+.if UseSDSCDebugConsole == 1
+    call sdscprint
+.else
+    call smsprint
+.endif ; UseSDSCDebugConsole == 1
   pop hl
   pop de
   pop bc
@@ -1339,43 +1335,21 @@ OutputText:
   push bc
   push de
   push hl
-; Accept call 2 (print char) and call 9 (print string)
-; Ignore all others
-    ld b, a  ; save char (destroys B)
-    ld a, c
-    cp 2
-    jr z, PrintChar
-    cp 9
-    jr z, PrintString
-OutputTextDone:
-  pop hl
+-:  ld a, (de)
+    cp STREND
+    jr z, +
+.if UseSDSCDebugConsole == 1
+    call sdscprint
+.else
+    call smsprint
+.endif ; UseSDSCDebugConsole
+    inc de
+    jr -
++:pop hl
   pop de
   pop bc
   pop af
   ret
-
-; Pass OutputText calls to display code
-PrintChar:
-  ld a, b  ; get char back
-.if UseSDSCDebugConsole == 1
-  call sdscprint
-.else
-  call smsprint
-.endif ; UseSDSCDebugConsole == 1
-  jr OutputTextDone
-
-PrintString:
-  ld a, (de)
-  cp '$'
-  jr z, OutputTextDone
-  cp 10
-.if UseSDSCDebugConsole == 1
-  call nz, sdscprint
-.else
-  call nz, smsprint
-.endif ; UseSDSCDebugConsole
-  inc de
-  jr PrintString
 
 ; Messages
 Message_Title:
