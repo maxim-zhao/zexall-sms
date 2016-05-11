@@ -1,6 +1,6 @@
 .define FastTestsFirst 1  ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
+.define DocumentedOnly 0 ; if 0 then undocumented flags get checked too
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
@@ -297,16 +297,14 @@ Tests:
 
 ; <adc|sbc> hl, <bc|de|hl|sp> (38,912 cycles)
 adc16:
-  .db FlagMask
   TestData $ed, $42, 0, 0, $832c, $4f88, $f22b, $b339, $7e1f, $1563, $d3, $89, $465e
-  TestData 0, $38, 0, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0 ; (1024 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, $d7, 0, -1 ; (38 cycles)
+  TestData   0, $38, 0, 0,     0,     0,     0, $f821,     0,     0,   0,   0,     0 ; (1024 cycles)
+  TestData   0,   0, 0, 0,     0,     0,     0,    -1,    -1,    -1, $d7,   0,    -1 ; (38 cycles)
   CRCs $f39089a0 $d48ad519
   MessageString "<adc|sbc> hl, <bc|de|hl|sp>.."
 
 ; add hl, <bc|de|hl|sp> (19,456 cycles)
 add16:
-  .db FlagMask
   TestData 9, 0, 0, 0, $c4a5, $c4c7, $d226, $a050, $58ea, $8566, $c6, $de, $9bc9
   TestData $30, 0, 0, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0 ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, $d7, 0, -1 ; (38 cycles)
@@ -315,7 +313,7 @@ add16:
 
 ; add ix, <bc|de|ix|sp> (19,456 cycles)
 add16x:
-  .db FlagMask
+  TestData $dd, 9, 0, 0, $ddac, $c294, $635b, $33d3, $6a76, $fa20, $94, $68, $36f5
   TestData $dd, 9, 0, 0, $ddac, $c294, $635b, $33d3, $6a76, $fa20, $94, $68, $36f5
   TestData 0, $30, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0, 0 ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, -1, 0, -1, -1, $d7, 0, -1 ; (38 cycles)
@@ -324,7 +322,6 @@ add16x:
 
 ; add iy, <bc|de|iy|sp> (19,456 cycles)
 add16y:
-  .db FlagMask
   TestData $fd, 9, 0, 0, $c7c2, $f407, $51c1, $3e96, $0bf4, $510f, $92, $1e, $71ea
   TestData 0, $30, 0, 0, 0, $f821, 0, 0, 0, 0, 0, 0, 0 ; (512 cycles)
   TestData 0, 0, 0, 0, 0, -1, 0, 0, -1, -1, $d7, 0, -1 ; (38 cycles)
@@ -333,7 +330,6 @@ add16y:
 
 ; aluop a, nn (28, 672 cycles)
 alu8i:
-  .db FlagMask
   TestData $c6, 0, 0, 0, $9140, $7e3c, $7a67, $df6d, $5b61, $0b29, $10, $66, $85b2
   TestData $38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (2048 cycles)
   TestData 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (14 cycles)
@@ -342,7 +338,6 @@ alu8i:
 
 ; aluop a, <b|c|d|e|h|l|(hl)|a> (753,664 cycles)
 alu8r:
-  .db FlagMask
   TestData $80, 0, 0, 0, $c53e, $573a, $4c4d, MachineStateBeforeTest, $e309, $a666, $d0, $3b, $adbb
   TestData $3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (16, 384 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, 0, 0 ; (46 cycles)
@@ -351,7 +346,6 @@ alu8r:
 
 ; aluop a, <ixh|ixl|iyh|iyl> (376,832 cycles)
 alu8rx:
-  .db FlagMask
   TestData $dd, $84, 0, 0, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
   TestData $20, $39, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0 ; (8, 192 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, 0, 0 ; (46 cycles)
@@ -360,7 +354,6 @@ alu8rx:
 
 ; aluop a, (<ix|iy>+1) (229,376 cycles)
 alu8x:
-  .db FlagMask
   TestData $dd, $86, $01, 0, $90b7, MachineStateBeforeTest, MachineStateBeforeTest, $32fd, $406e, $c1dc, $45, $6e, $e5fa
   TestData $20, $38, 0, 0, 0, 1, 1, 0, 0, 0, 0, -1, 0 ; (16384 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, 0, 0  ; (14 cycles)
@@ -369,7 +362,6 @@ alu8x:
 
 ; bit n, (<ix|iy>+1) (2048 cycles)
 bitx: 
-  .db FlagMask
   TestData $dd, $cb, 1, $46, $2075, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $3cfc, $a79a, $3d74, $51, $27, $ca14
   TestData $20, 0, 0, $38, 0, 0, 0, 0, 0, 0, $53, 0, 0 ; (256 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (8 cycles)
@@ -378,7 +370,6 @@ bitx:
 
 ; bit n, <b|c|d|e|h|l|(hl)|a> (49,152 cycles)
 bitz80:
-  .db FlagMask
   TestData $cb, $40, 0, 0, $3ef1, $9dfc, $7acc, MachineStateBeforeTest, $be61, $7a86, $50, $24, $1998
   TestData 0, $3f, 0, 0, 0, 0, 0, 0, 0, 0, $53, 0, 0  ; (1024 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, 0, -1, 0  ; (48 cycles)
@@ -387,7 +378,6 @@ bitz80:
 
 ; cpd<r> (1) (6144 cycles)
 cpd1:
-  .db FlagMask
   TestData $ed, $a9, 0, 0, $c7b6, $72b4, $18f6, MachineStateBeforeTest+14, $8dbd, 1, $c0, $30, $94a3
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 010, 0, -1, 0  ; (1024 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -396,7 +386,6 @@ cpd1:
 
 ; cpi<r> (1) (6144 cycles)
 cpi1:
-  .db FlagMask
   TestData $ed, $a1, 0, 0, $4d48, $af4a, $906b, MachineStateBeforeTest, $4e71, 1, $93, $6a, $907c
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 010, 0, -1, 0  ; (1024 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -405,7 +394,6 @@ cpi1:
 
 ; <daa|cpl|scf|ccf> (65, 536 cycles)
 daaop:
-  .db FlagMask
   TestData $27, 0, 0, 0, $2141, $09fa, $1d60, $a559, $8d5b, $9079, $04, $8e, $299d
   TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, -1, 0 ; (65, 536 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
@@ -414,7 +402,6 @@ daaop:
 
 ; <inc|dec> a (3072 cycles)
 inca: 
-  .db FlagMask
   TestData $3c, 0, 0, 0, $4adf, $d5d8, $e598, $8a2b, $a7b0, $431b, $44, $5a, $d030
   TestData $01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -423,7 +410,6 @@ inca:
 
 ; <inc|dec> b (3072 cycles)
 incb:
-  .db FlagMask
   TestData $04, 0, 0, 0, $d623, $432d, $7a61, $8180, $5a86, $1e85, $86, $58, $9bbb
   TestData $01, 0, 0, 0, 0, 0, 0, 0, 0, $ff00, 0, 0, 0 ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -432,7 +418,6 @@ incb:
 
 ; <inc|dec> bc (1536 cycles)
 incbc:
-  .db FlagMask
   TestData $03, 0, 0, 0, $cd97, $44ab, $8dc9, $e3e3, $11cc, $e8a4, $02, $49, $2a4d
   TestData $08, 0, 0, 0, 0, 0, 0, 0, 0, $f821, 0, 0, 0 ; (256 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -441,7 +426,6 @@ incbc:
 
 ; <inc|dec> c (3072 cycles)
 incc:
-  .db FlagMask
   TestData $0c, 0, 0, 0, $d789, $0935, $055b, $9f85, $8b27, $d208, $95, $05, $0660
   TestData $01, 0, 0, 0, 0, 0, 0, 0, 0, $ff, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -450,7 +434,6 @@ incc:
 
 ; <inc|dec> d (3072 cycles)
 incd: 
-  .db FlagMask
   TestData $14, 0, 0, 0, $a0ea, $5fba, $65fb, $981c, $38cc, $debc, $43, $5c, $03bd
   TestData $01, 0, 0, 0, 0, 0, 0, 0, $ff00, 0, 0, 0, 0 ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -459,7 +442,6 @@ incd:
 
 ; <inc|dec> de (1536 cycles)
 incde:
-  .db FlagMask
   TestData $13, 0, 0, 0, $342e, $131d, $28c9, $0aca, $9967, $3a2e, $92, $f6, $9d54
   TestData $08, 0, 0, 0, 0, 0, 0, 0, $f821, 0, 0, 0, 0 ; (256 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -468,7 +450,6 @@ incde:
 
 ; <inc|dec> e (3072 cycles)
 ince:
-  .db FlagMask
   TestData $1c, 0, 0, 0, $602f, $4c0d, $2402, $e2f5, $a0f4, $a10a, $13, $32, $5925
   TestData $01, 0, 0, 0, 0, 0, 0, 0, $ff, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -477,7 +458,6 @@ ince:
 
 ; <inc|dec> h (3072 cycles)
 inch:
-  .db FlagMask
   TestData $24, 0, 0, 0, $1506, $f2eb, $e8dd, $262b, $11a6, $bc1a, $17, $06, $2818
   TestData $01, 0, 0, 0, 0, 0, 0, $ff00, 0, 0, 0, 0, 0 ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -486,7 +466,6 @@ inch:
 
 ; <inc|dec> hl (1536 cycles)
 inchl:
-  .db FlagMask
   TestData $23, 0, 0, 0, $c3f4, $07a5, $1b6d, $4f04, $e2c2, $822a, $57, $e0, $c3e1
   TestData $08, 0, 0, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0 ; (256 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -495,7 +474,6 @@ inchl:
 
 ; <inc|dec> ix (1536 cycles)
 incix:
-  .db FlagMask
   TestData $dd, $23, 0, 0, $bc3c, $0d9b, $e081, $adfd, $9a7f, $96e5, $13, $85, $0be2
   TestData 0, 8, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0, 0  ; (256 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -504,7 +482,6 @@ incix:
 
 ; <inc|dec> iy (1536 cycles)
 inciy: 
-  .db FlagMask
   TestData $fd, $23, 0, 0, $9402, $637a, $3182, $c65a, $b2e9, $abb4, $16, $f2, $6d05
   TestData 0, 8, 0, 0, 0, $f821, 0, 0, 0, 0, 0, 0, 0  ; (256 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -513,7 +490,6 @@ inciy:
 
 ; <inc|dec> l (3072 cycles)
 incl:
-  .db FlagMask
   TestData $2c, 0, 0, 0, $8031, $a520, $4356, $b409, $f4c1, $dfa2, $d1, $3c, $3ea2
   TestData $01, 0, 0, 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -522,7 +498,6 @@ incl:
 
 ; <inc|dec> (hl) (3072 cycles)
 incm:
-  .db FlagMask
   TestData $34, 0, 0, 0, $b856, $0c7c, $e53e, MachineStateBeforeTest, $877e, $da58, $15, $5c, $1f37
   TestData $01, 0, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -531,7 +506,6 @@ incm:
 
 ; <inc|dec> sp (1536 cycles)
 incsp: 
-  .db FlagMask
   TestData $33, 0, 0, 0, $346f, $d482, $d169, $deb6, $a494, $f476, $53, $02, $855b
   TestData $08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $f821 ; (256 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -540,7 +514,6 @@ incsp:
 
 ; <inc|dec> (<ix|iy>+1) (6144 cycles)
 incx: 
-  .db FlagMask
   TestData $dd, $34, 1, 0, $fa6e, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $2c28, $8894, $5057, $16, $33, $286f
   TestData $20, 1, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (1024 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -549,7 +522,6 @@ incx:
 
 ; <inc|dec> ixh (3072 cycles)
 incxh: 
-  .db FlagMask
   TestData $dd, $24, 0, 0, $b838, $316c, $c6d4, $3e01, $8358, $15b4, $81, $de, $4259
   TestData 0, 1, 0, 0, 0, $ff00, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -558,7 +530,6 @@ incxh:
 
 ; <inc|dec> ixl (3072 cycles)
 incxl:
-  .db FlagMask
   TestData $dd, $2c, 0, 0, $4d14, $7460, $76d4, $06e7, $32a2, $213c, $d6, $d7, $99a5
   TestData 0, 1, 0, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -567,7 +538,6 @@ incxl:
 
 ; <inc|dec> iyh (3072 cycles)
 incyh: 
-  .db FlagMask
   TestData $dd, $24, 0, 0, $2836, $9f6f, $9116, $61b9, $82cb, $e219, $92, $73, $a98c
   TestData 0, 1, 0, 0, $ff00, 0, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -576,7 +546,6 @@ incyh:
 
 ; <inc|dec> iyl (3072 cycles)
 incyl: 
-  .db FlagMask
   TestData $dd, $2c, 0, 0, $d7c6, $62d5, $a09e, $7039, $3e7e, $9f12, $90, $d9, $220f
   TestData 0, 1, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -585,7 +554,6 @@ incyl:
 
 ; ld <bc|de>, (nnnn) (32 cycles)
 ld161: 
-  .db FlagMask
   TestData $ed, $4b, <MachineStateBeforeTest, >MachineStateBeforeTest, $f9a8, $f559, $93a4, $f5ed, $6f96, $d968, $86, $e6, $4bd8
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -594,7 +562,6 @@ ld161:
 
 ; ld hl, (nnnn) (16 cycles)
 ld162: 
-  .db FlagMask
   TestData $2a, <MachineStateBeforeTest, >MachineStateBeforeTest, 0, $9863, $7830, $2077, $b1fe, $b9fa, $abb8, $04, $06, $6015
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -603,7 +570,6 @@ ld162:
 
 ; ld sp, (nnnn) (16 cycles)
 ld163: 
-  .db FlagMask
   TestData $ed, $7b, <MachineStateBeforeTest, >MachineStateBeforeTest, $8dfc, $57d7, $2161, $ca18, $c185, $27da, $83, $1e, $f460
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -612,7 +578,6 @@ ld163:
 
 ; ld <ix|iy>, (nnnn) (32 cycles)
 ld164: 
-  .db FlagMask
   TestData $dd, $2a, <MachineStateBeforeTest, >MachineStateBeforeTest, $ded7, $a6fa, $f780, $244c, $87de, $bcc2, $16, $63, $4c96
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -621,7 +586,6 @@ ld164:
 
 ; ld (nnnn), <bc|de> (64 cycles)
 ld165: 
-  .db FlagMask
   TestData $ed, $43, <MachineStateBeforeTest, >MachineStateBeforeTest, $1f98, $844d, $e8ac, $c9ed, $c95d, $8f61, $80, $3f, $c7bf
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0  ; (32 cycles)
@@ -630,7 +594,6 @@ ld165:
 
 ; ld (nnnn), hl (16 cycles)
 ld166: 
-  .db FlagMask
   TestData $22, <MachineStateBeforeTest, >MachineStateBeforeTest, 0, $d003, $7772, $7f53, $3f72, $64ea, $e180, $10, $2d, $35e9
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
   TestData 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -639,7 +602,6 @@ ld166:
 
 ; ld (nnnn), sp (16 cycles)
 ld167: 
-  .db FlagMask
   TestData $ed, $73, <MachineStateBeforeTest, >MachineStateBeforeTest, $c0dc, $d1d6, $ed5a, $f356, $afda, $6ca7, $44, $9f, $3f0a
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1  ; (16 cycles)
@@ -648,7 +610,6 @@ ld167:
 
 ; ld (nnnn), <ix|iy> (64 cycles)
 ld168: 
-  .db FlagMask
   TestData $dd, $22, <MachineStateBeforeTest, >MachineStateBeforeTest, $6cc3, $0d91, $6900, $8ef8, $e3d6, $c3f7, $c6, $d9, $c2df
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0  ; (32 cycles)
@@ -657,7 +618,6 @@ ld168:
 
 ; ld <bc|de|hl|sp>, nnnn (64 cycles)
 ld16im: 
-  .db FlagMask
   TestData 1, 0, 0, 0, $5c1c, $2d46, $8eb9, $6078, $74b1, $b30e, $46, $d1, $30cc
   TestData $30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (4 cycles)
   TestData 0, $ff, $ff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -666,7 +626,6 @@ ld16im:
 
 ; ld <ix|iy>, nnnn (32 cycles)
 ld16ix: 
-  .db FlagMask
   TestData $dd, $21, 0, 0, $87e8, $2006, $bd12, $b69b, $7253, $a1e5, $51, $13, $f1bd
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, $ff, $ff, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -675,7 +634,6 @@ ld16ix:
 
 ; ld a, <(bc)|(de)> (44 cycles)
 ld8bd: 
-  .db FlagMask
   TestData $0a, 0, 0, 0, $b3a8, $1d2a, $7f8e, $42ac, MachineStateBeforeTest, MachineStateBeforeTest, $c6, $b1, $ef8e
   TestData $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, -1, 0 ; (22 cycles)
@@ -684,7 +642,6 @@ ld8bd:
 
 ; ld <b|c|d|e|h|l|(hl)|a>, nn (64 cycles)
 ld8im:
-  .db FlagMask
   TestData 6, 0, 0, 0, $c407, $f49d, $d13d, $0339, $de89, $7455, $53, $c0, $5509
   TestData $38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (8 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (8 cycles)
@@ -693,7 +650,6 @@ ld8im:
 
 ; ld (<ix|iy>+1), nn (32 cycles)
 ld8imx: 
-  .db FlagMask
   TestData $dd, $36, 1, 0, $1b45, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $d5c1, $61c7, $bdc4, $c0, $85, $cd16
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (16 cycles)
@@ -702,7 +658,6 @@ ld8imx:
 
 ; ld <b|c|d|e>, (<ix|iy>+1) (1024 cycles)
 ld8ix1: 
-  .db FlagMask
   TestData $dd, $46, 0, 0, $d016, MachineStateBeforeTest, MachineStateBeforeTest, $4260, $7f39, $0404, $97, $4a, $d085
   TestData $20, $18, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (64 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -711,7 +666,6 @@ ld8ix1:
 
 ; ld <h|l>, (<ix|iy>+1) (512 cycles)
 ld8ix2: 
-  .db FlagMask
   TestData $dd, $66, 0, 0, $84e0, MachineStateBeforeTest, MachineStateBeforeTest, $9c52, $a799, $49b6, $93, $00, $eead
   TestData $20, $08, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (32 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -720,7 +674,6 @@ ld8ix2:
 
 ; ld a, (<ix|iy>+1) (256 cycles)
 ld8ix3:
-  .db FlagMask
   TestData $dd, $7e, 0, 0, $d8b6, MachineStateBeforeTest, MachineStateBeforeTest, $c612, $df07, $9cd0, $43, $a6, $a0e5
   TestData $20, 0, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -729,7 +682,6 @@ ld8ix3:
 
 ; ld <ixh|ixl|iyh|iyl>, nn (32 cycles)
 ld8ixy:
-  .db FlagMask
   TestData $dd, $26, 0, 0, $3c53, $4640, $e179, $7711, $c107, $1afa, $81, $ad, $5d9b
   TestData $20, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (4 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (8 cycles)
@@ -738,7 +690,6 @@ ld8ixy:
 
 ; ld <b|c|d|e|h|l|a>, <b|c|d|e|h|l|a> (3456 cycles)
 ld8rr: 
-  .db FlagMask
   TestData $40, 0, 0, 0, $72a4, $a024, $61ac, MachineStateBeforeTest, $82c7, $718f, $97, $8f, $ef8e
   TestData $3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (64 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, -1, 0 ; (54 cycles)
@@ -747,7 +698,6 @@ ld8rr:
 
 ; ld <b|c|d|e|ixy|a>, <b|c|d|e|ixy|a> (6912 cycles)
 ld8rrx: 
-  .db FlagMask
   TestData $dd, $40, 0, 0, $bcc5, MachineStateBeforeTest, MachineStateBeforeTest, MachineStateBeforeTest, $2fc2, $98c0, $83, $1f, $3bcd
   TestData $20, $3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (128 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, -1, 0 ; (54 cycles)
@@ -756,7 +706,6 @@ ld8rrx:
 
 ; ld a, (nnnn) / ld (nnnn), a (44 cycles)
 lda: 
-  .db FlagMask
   TestData $32, <MachineStateBeforeTest, >MachineStateBeforeTest, 0, $fd68, $f4ec, $44a0, $b543, $0653, $cdba, $d2, $4f, $1fd8
   TestData $08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycle)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, -1, 0 ; (22 cycles)
@@ -765,7 +714,6 @@ lda:
 
 ; ldd<r> (1) (44 cycles)
 ldd1: 
-  .db FlagMask
   TestData $ed, $a8, 0, 0, $9852, $68fa, $66a1, MachineStateBeforeTest+3, MachineStateBeforeTest+1, 1, $c1, $68, $20b7
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
@@ -774,7 +722,6 @@ ldd1:
 
 ; ldd<r> (2) (44 cycles)
 ldd2: 
-  .db FlagMask
   TestData $ed, $a8, 0, 0, $f12e, $eb2a, $d5ba, MachineStateBeforeTest+3, MachineStateBeforeTest+1, 2, $47, $ff, $fbe4
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
@@ -783,7 +730,6 @@ ldd2:
 
 ; ldi<r> (1) (44 cycles)
 ldi1: 
-  .db FlagMask
   TestData $ed, $a0, 0, 0, $fe30, $03cd, $0006, MachineStateBeforeTest+2, MachineStateBeforeTest, 1, $04, $60, $2688
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
@@ -792,7 +738,6 @@ ldi1:
 
 ; ldi<r> (2) (44 cycles)
 ldi2:
-  .db FlagMask
   TestData $ed, $a0, 0, 0, $4ace, $c26e, $b188, MachineStateBeforeTest+2, MachineStateBeforeTest, 2, $14, $2d, $a39f
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
@@ -801,7 +746,6 @@ ldi2:
 
 ; neg (16,384 cycles)
 negop:
-  .db FlagMask
   TestData $ed, $44, 0, 0, $38a2, $5f6b, $d934, $57e4, $d2d6, $4642, $43, $5a, $09cc
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, -1, 0  ; (16, 384 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
@@ -810,7 +754,6 @@ negop:
 
 ; <rld|rrd> (7168 cycles)
 rldop:
-  .db FlagMask
   TestData $ed, $67, 0, 0, $91cb, $c48b, $fa62, MachineStateBeforeTest, $e720, $b479, $40, $06, $8ae2
   TestData 0, 8, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, -1, 0  ; (14 cycles)
@@ -819,7 +762,6 @@ rldop:
 
 ; <rlca|rrca|rla|rra> (6144 cycles)
 rot8080:
-  .db FlagMask
   TestData 7, 0, 0, 0, $cb92, $6d43, $0a90, $c284, $0c53, $f50e, $91, $eb, $40fc
   TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (1024 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
@@ -828,7 +770,6 @@ rot8080:
 
 ; shift/rotate (<ix|iy>+1) (416 cycles)
 rotxy:
-  .db FlagMask
   TestData $dd, $cb, 1, 6, $ddaf, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $ff3c, $dbf6, $94f4, $82, $80, $61d9
   TestData $20, 0, 0, $38, 0, 0, 0, 0, 0, 0, $80, 0, 0 ; (32 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $57, 0, 0  ; (13 cycles)
@@ -837,7 +778,6 @@ rotxy:
 
 ; shift/rotate <b|c|d|e|h|l|(hl)|a> (6784 cycles)
 rotz80:
-  .db FlagMask
   TestData $cb, 0, 0, 0, $cceb, $5d4a, $e007, MachineStateBeforeTest, $1395, $30ee, $43, $78, $3dad
   TestData 0, $3f, 0, 0, 0, 0, 0, 0, 0, 0, $80, 0, 0  ; (128 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $57, -1, 0 ; (53 cycles)
@@ -846,7 +786,6 @@ rotz80:
 
 ; <set|res> n, <b|c|d|e|h|l|(hl)|a> (7936 cycles)
 srz80:
-  .db FlagMask
   TestData $cb, $80, 0, 0, $2cd5, $97ab, $39ff, MachineStateBeforeTest, $d14b, $6ab2, $53, $27, $b538
   TestData 0, $7f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (128 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, -1, 0 ; (62 cycles)
@@ -855,7 +794,6 @@ srz80:
 
 ; <set|res> n, (<ix|iy>+1) (1792 cycles)
 srzx:
-  .db FlagMask
   TestData $dd, $cb, 1, $86, $fb44, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $ba09, $68be, $32d8, $10, $5e, $a867
   TestData $20, 0, 0, $78, 0, 0, 0, 0, 0, 0, 0, 0, 0 ; (128 cycles)
   TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, 0, 0  ;(14 cycles)
@@ -864,7 +802,6 @@ srzx:
 
 ; ld (<ix|iy>+1), <b|c|d|e> (2048 cycles)
 st8ix1:
-  .db FlagMask
   TestData $dd, $70, 0, 0, $270d, MachineStateBeforeTest, MachineStateBeforeTest, $b73a, $887b, $99ee, $86, $70, $ca07
   TestData $20, $03, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (64 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0  ; (32 cycles)
@@ -873,7 +810,6 @@ st8ix1:
 
 ; ld (<ix|iy>+1), <h|l> (512 cycles)
 st8ix2: 
-  .db FlagMask
   TestData $dd, $74, 0, 0, $b664, MachineStateBeforeTest, MachineStateBeforeTest, $e8ac, $b5f5, $aafe, $12, $10, $9566
   TestData $20, $01, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (32 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0  ; (16 cycles)
@@ -882,7 +818,6 @@ st8ix2:
 
 ; ld (<ix|iy>+1), a (128 cycles)
 st8ix3:
-  .db FlagMask
   TestData $dd, $77, 0, 0, $67af, MachineStateBeforeTest, MachineStateBeforeTest, $4f13, $0644, $bcd7, $50, $ac, $5faf
   TestData $20, 0, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (8 cycles)
@@ -891,7 +826,6 @@ st8ix3:
 
 ; ld (<bc|de>), a (96 cycles)
 stabd:
-  .db FlagMask
   TestData 2, 0, 0, 0, $0c3b, $b592, $6cff, $959e, MachineStateBeforeTest, MachineStateBeforeTest+1, $c1, $21, $bde7
   TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (4 cycles)
   TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, -1, 0  ; (24 cycles)
@@ -910,9 +844,6 @@ StartTest:
     inc hl
     ld h, (hl)
     ld l, a
-    ld a, (hl)  ; flag mask
-    ld (Test + OffsetOfFlagMask), a   ; self-modify code for flag mask
-    inc hl
     push hl
       ld de, 20
       add hl, de  ; point to incmask
@@ -1260,8 +1191,7 @@ _InstructionUnderTest:
     ld (MachineStateAfterTest.memop), hl
     ld hl, MachineStateAfterTest.f ; flags after Test
     ld a, (hl)
-_FlagMaskCode:
-    and $d7  ; mask-out irrelevant bits, modified at runtime
+    and FlagMask  ; mask-out irrelevant bits
     ld (hl), a
     ld b, _sizeof_MachineState
     ld de, MachineStateAfterTest
@@ -1278,7 +1208,6 @@ _FlagMaskCode:
 _TestCodeEnd:
 .define TestCodeSize _TestCodeEnd - TestCode
 .define OffsetOfInstructionUnderTest _InstructionUnderTest - TestCode
-.define OffsetOfFlagMask _FlagMaskCode - TestCode + 1
 .export TestCodeSize, OffsetOfInstructionUnderTest, OffsetOfFlagMask
 .ends
 
@@ -1909,11 +1838,10 @@ UpdateProgressIndicator:
 
 PrintChar:
   push de
-    ; First, write the character (in a) to the screen
     ; If it's a carriage return, skip it.
     cp NEWLINE
-    jp z, doneprint
-    ; Otherwise, we write.
+    jp z, _NextLine
+    ; Write the character (in a) to the screen
     sub ' '       ; Shift into our font range
     ld b, a       ; save value for later
     ld c, VDP_ADDRESS
@@ -1935,21 +1863,16 @@ PrintChar:
     ld hl,CursorX
     inc (hl)
 
-    ; Now the fun computation
-doneprint:
-    ; Check if this was a carriage return.
-    cp NEWLINE
-    jp z, nextline
     ; Check if we're at the end of the line
     ld a, (CursorX)
     cp 32
-    jp z, nextline
+    jp z, _NextLine
   pop de
   ret
 
   ; Here we do the job of scrolling the display, computing the
   ; new VRAM address, and all that fun stuff.
-nextline:
+_NextLine:
     ld hl, (VRAMAddress)     ; Increase the VRAM position
     ; Get the cursor position and find out how far it was to the
     ; end of the line.
@@ -1957,8 +1880,8 @@ nextline:
     ld b, a
     ld a, 32
     sub b
+    call _WriteBlanks   ; Fill the rest of the line
     sla a               ; Now, double this and add it to HL. This is the new address.
-    call namefill       ; Fill the rest of the line
     ld c, a
     ld b, 0
     add hl, bc          ; Now create new address.
@@ -1977,8 +1900,8 @@ nextline:
     jp c, +
     ld hl, NAME_TABLE_START ; If we are, return to the top of VRAM.
   +:ld (VRAMAddress), hl ; Now, save our VRAM address.
-    ld a, 32*2           ; Clear the new line
-    call namefill
+    ld a, 32             ; Clear the new line
+    call _WriteBlanks
     ld a, (ScrollFlag)      ; Load the Scroll flag and check if it's set.
     cp 0
     jp z, noScroll
@@ -2003,7 +1926,7 @@ noScroll:
   ret
 
 ; Fill the nametable from HL with A bytes.
-namefill:
+_WriteBlanks:
   push af
   push bc
     ; Do nothing for count = 0
@@ -2013,7 +1936,9 @@ namefill:
     out (c), l ; Output lower-order bits
     out (c), h ; Output upper bits + control
     ; Now, zero out the region
-    ld b,a
+    ; Double so we write n*2 bytes
+    add a, a
+    ld b, a
     xor a
     ld c, VDP_DATA
   -:out (c), a ; Output the character
