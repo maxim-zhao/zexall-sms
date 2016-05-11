@@ -1,6 +1,6 @@
 .define FastTestsFirst 1  ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 1 ; if 0 then undocumented opcodes and flags get exercised too
+.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
 ;.define IncludeR 1 ; if 1 then R register will be included in state
 
 ; zexall.asm - Z80 instruction set exerciser
@@ -906,7 +906,7 @@ stabd:
 StartTest:
   push hl
     xor a
-    ld (PrintSl), a
+    ld (SlashCounter), a
     ld a, (hl)  ; get pointer to test
     inc hl
     ld h, (hl)
@@ -943,11 +943,11 @@ StartTest:
 
 .define HALT_OPCODE $76      
       
-      ; Test loop
- tlp: ld a, (Test+OffsetOfInstructionUnderTest)
+TestLoop:
+      ld a, (Test+OffsetOfInstructionUnderTest)
       cp HALT_OPCODE  ; pragmatically avoid halt intructions
       jp z, ++
-      and $df
+      and $df ; check for prefix bytes
       cp $dd
       jp nz, +
       ld a, (Test+OffsetOfInstructionUnderTest+1)
@@ -958,7 +958,7 @@ StartTest:
 .endif ; UseSDSCDebugConsole == 0
   ++: call count      ; increment the Counter
       call nz, shift   ; shift the scan bit
-    pop hl  ; pointer to Test case
+    pop hl  ; pointer to test case
     jp z, tlp3  ; done if shift returned NZ
     ld de, 20+20+20
     add hl, de  ; point to expected crc
@@ -999,7 +999,7 @@ tlp3:
     ld b, _sizeof_MachineState
     ld de, MachineStateBeforeTest
     call setup  ; setup machine state
-    jp tlp
+    jp TestLoop
 
 ; set up a field of the Test case
 ; b  = number of bytes
@@ -1760,11 +1760,11 @@ sdscprint_out:
 .else
 
 .ramsection "SMS drawing routines variables" slot 3
-  CursorX     db
-  VRAMAddress dw
-  Scroll      db
-  ScrollFlag  db
-  PrintSl     db
+  CursorX      db ; X coordinate of cursor
+  VRAMAddress  dw ; VRAM address, pre-masked as a write command
+  Scroll       db ; Current scrolling offset
+  ScrollFlag   db ; Zero before we start scrolling, then 1
+  SlashCounter db ; Counter for rawing slashes animation
 .ends
 
 .section "Font" free
@@ -1884,9 +1884,9 @@ WaitForVBlank:
 smsprintslash:
   push af
     ; Increment the counter
-    ld a, (PrintSl)
+    ld a, (SlashCounter)
     inc a
-    ld (PrintSl), a
+    ld (SlashCounter), a
     cp '/' ; When it's a slash, print it
     call z, printslashvblank
     cp '\'
