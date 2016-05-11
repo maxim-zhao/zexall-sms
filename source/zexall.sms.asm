@@ -104,13 +104,15 @@ banks 1
   sp    dw
 .endst
 
+.struct Permuter
+  Bit     db
+  Byte    dw
+  Buffer  dsw 20
+.endst
+
 .ramsection "Variables" slot 3
-  CounterBit              db      ; Counter and Shifter variables...
-  CounterByte             dw
-  Counter                 dsw 20
-  ShifterBit              db
-  ShifterByte             dw
-  Shifter                 dsw 20
+  Counter                 instanceof Permuter
+  Shifter                 instanceof Permuter
   StackPointerSaved       dw      ; Saved sp
   CRCValue                dsb 4   ; CRC value
   padding                 dsb 4
@@ -189,7 +191,7 @@ banks 1
 ; The first part is the base case, which is the first test case of
 ; the sequence.  This base is then modified according to the next 2
 ; vectors.  Each 1 bit in the increment vector specifies a bit to be
-; cycled in the form of a binary Counter.  For instance, if the byte
+; cycled in the form of a binary counter.  For instance, if the byte
 ; corresponding to the accumulator is set to $ff in the increment
 ; vector, the test will be repeated for all 256 values of the
 ; accumulator.  Note that 1 bits don't have to be contiguous.  The
@@ -200,7 +202,7 @@ banks 1
 ; number of 1 bits in it.
 
 ; The total number of test cases is the product of those caused by the
-; Counter and shift vectors and can easily become unweildy.  Each
+; counter and shift vectors and can easily become unweildy.  Each
 ; individual test case can take a few milliseconds to execute, due to
 ; the overhead of test setup and crc calculation, so test design is a
 ; compromise between coverage and execution time.
@@ -216,7 +218,7 @@ Start:
   call SMSInitialise
   ld de, Message_Title
   call OutputText
-
+  
   ; Run tests, stop when first word of test data is 0000
   ld hl, Tests
 -:ld a, (hl)
@@ -915,15 +917,15 @@ StartTest:
     push hl
       ld de, 20
       add hl, de  ; point to incmask
-      ld de, Counter
+      ld de, Counter.Buffer
       call InitMask
     pop hl
     push hl
       ld de, 20+20
       add hl, de  ; point to scanmask
-      ld de, Shifter
+      ld de, Shifter.Buffer
       call InitMask
-      ld hl, Shifter
+      ld hl, Shifter.Buffer
       ld (hl), 1  ; first bit
     pop hl
     push hl
@@ -980,12 +982,12 @@ _OK:call OutputText
 tlp3:
   push hl
     ld a, 1  ; initialise count and shift scanners
-    ld (CounterBit), a
-    ld (ShifterBit), a
-    ld hl, Counter
-    ld (CounterByte), hl
-    ld hl, Shifter
-    ld (ShifterByte), hl
+    ld (Counter.Bit), a
+    ld (Shifter.Bit), a
+    ld hl, Counter.Buffer
+    ld (Counter.Byte), hl
+    ld hl, Shifter.Buffer
+    ld (Shifter.Byte), hl
 
     ld b, 4  ; bytes in iut field
   pop hl  ; pointer to Test case
@@ -1022,8 +1024,8 @@ subclp:
     rrca
     push af
       ld a, 0
-      call c, GetNextCounterBit ; get next Counter bit if mask bit was set
-      xor c  ; flip bit if Counter bit was set
+      call c, GetNextCounterBit ; get next counter bit if mask bit was set
+      xor c  ; flip bit if counter bit was set
       rrca
       ld c, a
     pop af
@@ -1039,8 +1041,8 @@ subshf:
   -:rrca
     push af
       ld a, 0
-      call c, GetNextShifterBit ; get next Shifter bit if mask bit was set
-      xor c  ; flip bit if Shifter bit was set
+      call c, GetNextShifterBit ; get next shifter bit if mask bit was set
+      xor c  ; flip bit if shifter bit was set
       rrca
       ld c, a
     pop af
@@ -1057,18 +1059,18 @@ subshf:
 GetNextCounterBit:
   push bc
   push hl
-    ld hl, (CounterByte)
+    ld hl, (Counter.Byte)
     ld b, (hl)
-    ld hl, CounterBit
+    ld hl, Counter.Bit
     ld a, (hl)
     ld c, a
     rlca
     ld (hl), a
     cp 1
     jp nz, +
-    ld hl, (CounterByte)
+    ld hl, (Counter.Byte)
     inc hl
-    ld (CounterByte), hl
+    ld (Counter.Byte), hl
 +:  ld a, b
     and c
  pop hl
@@ -1081,18 +1083,18 @@ GetNextCounterBit:
 GetNextShifterBit:
   push bc
   push hl
-    ld hl, (ShifterByte)
+    ld hl, (Shifter.Byte)
     ld b, (hl)
-    ld hl, ShifterBit
+    ld hl, Shifter.Bit
     ld a, (hl)
     ld c, a
     rlca
     ld (hl), a
     cp 1
     jp nz, +
-    ld hl, (ShifterByte)
+    ld hl, (Shifter.Byte)
     inc hl
-    ld (ShifterByte), hl
+    ld (Shifter.Byte), hl
   +:ld a, b
     and c
     pop hl
@@ -1103,21 +1105,6 @@ GetNextShifterBit:
 
 ; clear memory at hl, bc bytes
 clrmem:
-  push af
-  push bc
-  push de
-  push hl
-    ld (hl), 0
-    ld d, h
-    ld e, l
-    inc de
-    dec bc
-    ldir
- pop hl
- pop de
- pop bc
- pop af
- ret
 
 ; initialise Counter or Shifter
 ; de = pointer to work area for Counter or Shifter
@@ -1125,10 +1112,20 @@ clrmem:
 InitMask:
   push de
     ex de, hl
-    ld bc, 20+20
-    call clrmem  ; clear work area
+      ld bc, 20+20
+      ; clear work area
+      push de
+      push hl
+        ld (hl), 0
+        ld d, h
+        ld e, l
+        inc de
+        dec bc
+        ldir
+      pop hl
+      pop de
     ex de, hl
-    ld b, 20  ; byte Counter
+    ld b, 20  ; byte counter
     ld c, 1  ; first bit
     ld d, 0  ; bit Counter
  --:ld e, (hl)
@@ -1165,12 +1162,12 @@ InitMask:
  ld (hl), a
  ret
 
-; multi-byte Counter
+; multi-byte counter
 count:
   push bc
   push de
   push hl
-    ld hl, Counter ; 20 byte Counter Starts here
+    ld hl, Counter.Buffer ; 20 byte counter starts here
     ld de, 20  ; somewhere in here is the stop bit
     ex de, hl
     add hl, de
@@ -1193,12 +1190,12 @@ count:
     inc de
     jp -
 
-; multi-byte Shifter
+; multi-byte shifter
 shift:
   push bc
   push de
   push hl
-    ld hl, Shifter ; 20 byte shift register Starts here
+    ld hl, Shifter.Buffer ; 20 byte shift register starts here
     ld de, 20  ; somewhere in here is the stop bit
     ex de, hl
     add hl, de
@@ -1353,7 +1350,12 @@ OutputText:
 
 ; Messages
 Message_Title:
-  .asc "Z80 instruction exerciser", NEWLINE, NEWLINE, STREND
+  .asc "Z80 instruction exerciser", NEWLINE
+.if DocumentedOnly == 1
+  .asc "Documented flags version", NEWLINE, NEWLINE, STREND
+.else
+  .asc "Undocumented flags version", NEWLINE, NEWLINE, STREND
+.endif
 Message_Done:
   .asc "Tests complete", STREND
 Message_OK:
@@ -2101,21 +2103,21 @@ namefill:
     ld a, b      ; Wait for blanking period
     or c
     jp z, +
-    push bc     ; Save the Counter for later.
+    push bc     ; Save the counter for later.
       ld c, $bf  ; Control port
       ld a, $78  ; Set nametable base bits
       or h      ; Get remaining bits
       out (c), l ; Output lower-order bits
       out (c), a ; Output upper bits + control
       ; Now, zero out the region
-      pop hl    ; Get our Counter
-      ld a, 0
-      ld de, 1
-      ld c, $be
-      ccf
-    -:out (c), a ; Output the character
-      sbc hl, de
-      jp nz, -
+    pop hl    ; Get our counter
+    ld a, 0
+    ld de, 1
+    ld c, $be
+    ccf
+  -:out (c), a ; Output the character
+    sbc hl, de
+    jp nz, -
 +:pop hl
   pop de
   pop bc
