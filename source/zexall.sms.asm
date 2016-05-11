@@ -1,7 +1,6 @@
 .define FastTestsFirst 1  ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 0 ; if 0 then undocumented flags get checked too
-;.define IncludeR 1 ; if 1 then R register will be included in state
+.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
@@ -1290,6 +1289,7 @@ PrintHex32:
   push af
   push bc
   push hl
+    call WaitForVBlank
     ld b, 4
   -:push bc
       ld a, (hl)
@@ -1329,6 +1329,7 @@ OutputText:
   push bc
   push de
   push hl
+    call WaitForVBlank
 -:  ld a, (de)
     cp STREND
     jr z, +
@@ -1908,8 +1909,6 @@ UpdateProgressIndicator:
 
 PrintChar:
   push de
-    call WaitForVBlank
-
     ; First, write the character (in a) to the screen
     ; If it's a carriage return, skip it.
     cp NEWLINE
