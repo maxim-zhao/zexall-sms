@@ -1,9 +1,9 @@
-vdpregs:
 .define SpriteSet           0       ; 0 for sprites to use tiles 0-255, 1 for 256+
 .define NameTableAddress    $3800   ; must be a multiple of $800; usually $3800; fills $700 bytes (unstretched)
 .define SpriteTableAddress  $3f00   ; must be a multiple of $100; usually $3f00; fills $100 bytes
+VDPRegisterInitialisation:
 .db %00100100,$80
-;    |||||||`- Disable synch
+;    |||||||`- Disable sync
 ;    ||||||`-- Enable extra height modes
 ;    |||||`--- SMS mode instead of SG
 ;    ||||`---- Shift sprites left 8 pixels
@@ -30,9 +30,36 @@ vdpregs:
 ;    ``------- Vertical scroll
 .db $ff,$8a
 ;    ``------- Line interrupt spacing
+VDPRegisterInitialisationEnd:
 
-palette:
-
+Palette:
 .db $00,$30,$0c,$03,$3c,$33,$0f,$16,$19,$06,$35,$21,$0d,$37,$23,$3f
 .db $00,$30,$0c,$03,$3c,$33,$0f,$16,$19,$06,$35,$21,$0d,$37,$23,$07
+PaletteEnd:
 
+.define VDP_ADDRESS $bf
+.define VDP_REGISTER $bf
+.define VDP_STATUS $bf
+.define VDP_DATA $be
+.define VRAM_WRITE_MASK $4000
+
+.macro SET_VDP_REGISTER args index, value
+    ld a, value
+    out (VDP_REGISTER), a
+    ld a, $80 | index
+    out (VDP_REGISTER), a
+.endm
+
+.macro SET_VRAM_ADDRESS args value
+    ld a, <value
+    out (VDP_ADDRESS), a
+    ld a, $40 | (>value)
+    out (VDP_ADDRESS), a
+.endm
+
+.macro SET_CRAM_ADDRESS args value
+    ld a, <value
+    out (VDP_ADDRESS), a
+    ld a, $c0 | (>value)
+    out (VDP_ADDRESS), a
+.endm

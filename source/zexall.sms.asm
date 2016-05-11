@@ -119,7 +119,7 @@ banks 1
   MachineStateAfterTest   instanceof MachineState
   MachineStateBeforeTest  instanceof MachineState ; CRCs are dependent on the location of this so it needs to stay at $c070...
   PauseFlag               db
-  Test                    dsb 100
+  Test                    dsb 100+1 ; WLA DX doesn't (?) have a way to make this auto-sized
 .ends
 
 .if DocumentedOnly == 1
@@ -912,7 +912,7 @@ StartTest:
     ld h, (hl)
     ld l, a
     ld a, (hl)  ; flag mask
-    ld ((Test+FlagMaskCode-TestCode)+1), a   ; self-modify code for flag mask
+    ld (Test + OffsetOfFlagMask), a   ; self-modify code for flag mask
     inc hl
     push hl
       ld de, 20
@@ -929,7 +929,7 @@ StartTest:
       ld (hl), 1  ; first bit
     pop hl
     push hl
-      ld de, Test+InstructionUnderTest-TestCode  ; self-modify instruction to Test
+      ld de, Test+OffsetOfInstructionUnderTest  ; self-modify instruction to Test
       ld bc, 4
       ldir
       ld de, MachineStateBeforeTest  ; copy initial machine state
@@ -941,15 +941,17 @@ StartTest:
       call OutputText  ; show Test name
       call InitialiseCRC
 
+.define HALT_OPCODE $76      
+      
       ; Test loop
- tlp: ld a, (Test+InstructionUnderTest-TestCode)
-      cp $76  ; pragmatically avoid halt intructions
+ tlp: ld a, (Test+OffsetOfInstructionUnderTest)
+      cp HALT_OPCODE  ; pragmatically avoid halt intructions
       jp z, ++
       and $df
       cp $dd
       jp nz, +
-      ld a, (Test+InstructionUnderTest-TestCode+1)
-      cp $76
+      ld a, (Test+OffsetOfInstructionUnderTest+1)
+      cp HALT_OPCODE
    +: call nz, Test    ; execute the test instruction
 .if UseSDSCDebugConsole == 0
       call smsprintslash
@@ -992,7 +994,7 @@ tlp3:
     ld b, 4  ; bytes in iut field
   pop hl  ; pointer to Test case
   push hl
-    ld de, Test+InstructionUnderTest-TestCode
+    ld de, Test + OffsetOfInstructionUnderTest
     call setup  ; setup iut
     ld b, _sizeof_MachineState
     ld de, MachineStateBeforeTest
@@ -1233,7 +1235,6 @@ TestCode:
   push bc
   push de
   push hl
-    di   ; disable interrupts
     ld (StackPointerSaved), sp ; save stack pointer
     ld sp, MachineStateBeforeTest.iy ; point to Test-case machine state
       pop iy  ; and load all regs
@@ -1244,7 +1245,7 @@ TestCode:
       pop af
     ld sp, (MachineStateBeforeTest.sp)
 
-InstructionUnderTest:
+_InstructionUnderTest:
     .dsb 4, 0  ; max 4 byte instruction under Test, modified at runtime
 
     ld (MachineStateAfterTest.sp), sp ; save stack pointer
@@ -1260,7 +1261,7 @@ InstructionUnderTest:
     ld (MachineStateAfterTest.memop), hl
     ld hl, MachineStateAfterTest.f ; flags after Test
     ld a, (hl)
-FlagMaskCode:
+_FlagMaskCode:
     and $d7  ; mask-out irrelevant bits, modified at runtime
     ld (hl), a
     ld b, _sizeof_MachineState
@@ -1275,7 +1276,11 @@ FlagMaskCode:
   pop bc
   pop af
   ret
-TestCodeEnd:
+_TestCodeEnd:
+.define TestCodeSize _TestCodeEnd - TestCode
+.define OffsetOfInstructionUnderTest _InstructionUnderTest - TestCode
+.define OffsetOfFlagMask _FlagMaskCode - TestCode + 1
+.export TestCodeSize, OffsetOfInstructionUnderTest, OffsetOfFlagMask
 .ends
 
 .section "Text display" free
@@ -1708,7 +1713,7 @@ Install:
   push hl
     ld de, Test
     ld hl, TestCode
-    ld bc, TestCodeEnd - TestCode
+    ld bc, TestCodeSize
     ldir
   pop hl
   pop de
@@ -1756,18 +1761,11 @@ sdscprint_out:
 
 .ramsection "SMS drawing routines variables" slot 3
   CursorX     db
-  VRAMAdr     dw
+  VRAMAddress dw
   Scroll      db
   ScrollFlag  db
   PrintSl     db
 .ends
-
-; .define CursorX $C300
-; .define VRAMAdr $C304
-; .define Scroll  $C306
-; .define ScrollFlag $C307
-; .define PrintSl $C390
-; .define Test    $C400
 
 .section "Font" free
 font:
@@ -1784,26 +1782,23 @@ SMSInitialise:
   push bc
   push de
   push hl
-    ld a, 0
+    xor a
     ld (PauseFlag), a
     call SetUpVDP
     call LoadFont
     call LoadPalette
     call InitCursor
-    call Install ; first, install Test code into RAM
+    call Install ; first, install test code into RAM
 
     ; Turn screen on
-    ld a, %11000000
-;         ||||| |`- Zoomed sprites -> 16x16 pixels
-;         ||||| `-- Doubled sprites -> 2 tiles per sprite, 8x16
-;         ||||`---- 30 row/240 line mode
-;         |||`----- 28 row/224 line mode
-;         ||`------ VBlank interrupts
-;         |`------- Enable display
-;         `-------- Must be set (VRAM size bit)
-    out ($bf), a
-    ld a, $81
-    out ($bf), a
+    SET_VDP_REGISTER 1, %11000000
+;                        ||||| |`- Zoomed sprites -> 16x16 pixels
+;                        ||||| `-- Doubled sprites -> 2 tiles per sprite, 8x16
+;                        ||||`---- 30 row/240 line mode
+;                        |||`----- 28 row/224 line mode
+;                        ||`------ VBlank interrupts
+;                        |`------- Enable display
+;                        `-------- Must be set (VRAM size bit)
 
   pop hl
   pop de
@@ -1811,80 +1806,76 @@ SMSInitialise:
   pop af
   ret
 
-; Set up our VDP for display. Set the correct video mode, and enable display
+; Set up our VDP for display. Set the correct video mode, but the display is turned off.
 SetUpVDP:
-  ld hl, vdpregs
-  ld b, 18
-  ld c, $bf
+  ; Set VDP registers
+  ld hl, VDPRegisterInitialisation
+  ld b, VDPRegisterInitialisationEnd - VDPRegisterInitialisation
+  ld c, VDP_REGISTER
   otir
+
+  ; Clear VRAM
+  SET_VRAM_ADDRESS 0
+  ld hl, $8000    
+  ld bc, 1
+  ld a, 0
+-:out (VDP_DATA), a
+  sbc hl, bc
+  jr nz, -
+
   ret
 
 ; Install our palette into the VDP
 LoadPalette:
-  ; Set VRAM address
-  ld a, $00
-  out ($bf), a
-  ld a, $c0
-  out ($bf), a
-  ld hl, palette
-  ld b, $20
-  ld c, $be
+  SET_CRAM_ADDRESS 0
+  ld hl, Palette
+  ld b, PaletteEnd - Palette
+  ld c, VDP_DATA
   otir
   ret
 
-; Load the font. Also clears the VRAM first.
+; Load the font
 LoadFont:
-  ld hl, $4000    ; Clear VRAM
-  ld bc, 1
-  ld a, 0
--:out ($be), a
-  sbc hl, bc
-  jr nz, -
-
-  ld a, $00       ; Set VRAM write address
-  out ($bf), a
-  ld a, $60
-  out ($bf), a
-
+  SET_VRAM_ADDRESS 0
   ld hl, font
   ld bc, fontend-font
   ld de, 1
 -:ld a, (hl)
-  out ($be), a
-  out ($be), a
-  out ($be), a
-  out ($be), a
+  out (VDP_DATA), a
+  out (VDP_DATA), a
+  out (VDP_DATA), a
+  out (VDP_DATA), a
   inc hl
-  dec c
+  dec bc
+  ld a, b
+  or c
   jr nz, -
-  djnz -
   ret
 .ends
 
 .section "Console emulation" free
 
+.define NAME_TABLE_START NameTableAddress | VRAM_WRITE_MASK
+.define SCREEN_END NAME_TABLE_START + 32*23*2
+.define NAME_TABLE_END NAME_TABLE_START + 32*28*2
+
 ; Initialize the cursor variables
 InitCursor:
-  ld hl, 0
+  ld hl, NAME_TABLE_START
   ld a, 0
   ld (CursorX), a
-  ld (VRAMAdr), hl
+  ld (VRAMAddress), hl
   ld (Scroll), a
   ld (ScrollFlag), a
   ret
 
-; Code to wait for Start of blanking period
+; Code to wait for start of blanking period
 WaitForVBlank:
   push af
-  push bc
- --:in a, ($7e)  ; get VCount value
-  -:ld b, a      ; store it
-    in a, ($7e)  ; and again
-    cp b        ; Is it the same?
-    jr nz, -     ; If not, repeat
-    cp $c0      ; Is is $c0?
-    jp nz, --    ; Repeat if not
-  pop bc
+    ; Wait for status bit to be set
+-:  in a, (VDP_STATUS)
+    and %10000000
+    jr z, -
   pop af
   ret
 
@@ -1892,21 +1883,14 @@ WaitForVBlank:
 ; Code to print slash between executions
 smsprintslash:
   push af
-  
+    ; Increment the counter
     ld a, (PrintSl)
     inc a
     ld (PrintSl), a
-    cp $2f
-    jr nz, goprintnx
-    call printslashvblank
-
-goprintnx:
-    cp $5c
-    jr nz, doneprintsl
-    call printslashvblank
-
-doneprintsl:
-
+    cp '/' ; When it's a slash, print it
+    call z, printslashvblank
+    cp '\'
+    call z, printslashvblank
   pop af
   ret
 
@@ -1918,55 +1902,19 @@ printslashvblank:
 
     call WaitForVBlank
 
-    ; First, write the character (in a) to the screen
-    ; If it's a carriage return, skip it.
-    cp NEWLINE
-    jp z, doneprint
-    ; Otherwise, we write.
-    ; Print the first slash
-    ld b, a
-    ld c, $bf      ; Control port
-    ld hl, (VRAMAdr)
-    ld a, $78      ; Set nametable base bits
-    or h          ; Get remaining bits
+    sub ' '       ; Shift into our font range
+    ld c, VDP_ADDRESS
+    ld hl, (VRAMAddress)
+    out (c), l
+    out (c), h
 
-    out (c), l     ; Output lower-order bits
-    out (c), a     ; Output upper bits + control
-
-    ld a, b        ; Put value back in A
-    sub $20       ; Shift into our font range
-
-    ld c, $be
+    ; Print the char twice (but don't move the cursor on)
+    ld b, 0
+    ld c, VDP_DATA
     out (c), a     ; Output the character
-
-    ld a, b        ; Put value back in A... again
-
-    ld b, 1
     out (c), b
-
-    ; Print the second slash
-    ld b, a
-    ld c, $bf      ; Control port
-    ld hl, (VRAMAdr)
-    inc hl
-    inc hl
-    ld a, $78      ; Set nametable base bits
-    or h          ; Get remaining bits
-
-    out (c), l     ; Output lower-order bits
-    out (c), a     ; Output upper bits + control
-
-    ld a, b        ; Put value back in A
-    sub $20       ; Shift into our font range
-
-    ld c, $be
     out (c), a     ; Output the character
-
-    ld a, b        ; Put value back in A... again
-
-    ld b, 1
     out (c), b
-
   pop hl
   pop de
   pop bc
@@ -1986,45 +1934,34 @@ smsprint:
 
     ; First, write the character (in a) to the screen
     ; If it's a carriage return, skip it.
-    cp 13
+    cp NEWLINE
     jp z, doneprint
     ; Otherwise, we write.
-    ld b, a        ; Save the output value
-    ld c, $bf      ; Control port
-    ld hl, (VRAMAdr)
-    ld a, $78      ; Set nametable base bits
-    or h          ; Get remaining bits
+    sub ' '       ; Shift into our font range
+    ld b, a       ; save value for later
+    ld c, VDP_ADDRESS
+    ld hl, (VRAMAddress)
+    out (c), l    ; Output lower-order bits
+    out (c), h    ; Output upper bits + control
 
-    out (c), l     ; Output lower-order bits
-    out (c), a     ; Output upper bits + control
-
-    ld a, b        ; Put value back in A
-    sub $20       ; Shift into our font range
-
-    ld c, $be
+    ld c, VDP_DATA
     out (c), a     ; Output the character
-
-    ld a, b        ; Put value back in A... again
-
-    ld b, 1
+    ld b, 0
     out (c), b
-
-    ; Move cursor forward
-    push af
-      ld a, (CursorX)
-      inc a
-      ld (CursorX), a
-    pop af
 
     ; Update VRAM pointer
     inc hl
     inc hl
-    ld (VRAMAdr), hl
+    ld (VRAMAddress), hl
+
+    ; Move cursor forward
+    ld hl,CursorX
+    inc (hl)
 
     ; Now the fun computation
 doneprint:
     ; Check if this was a carriage return.
-    cp 13
+    cp NEWLINE
     jp z, nextline
     ; Check if we're at the end of the line
     ld a, (CursorX)
@@ -2039,7 +1976,7 @@ doneprint:
   ; Here we do the job of scrolling the display, computing the
   ; new VRAM address, and all that fun stuff.
 nextline:
-    ld hl, (VRAMAdr)     ; Increase the VRAM position
+    ld hl, (VRAMAddress)     ; Increase the VRAM position
     ; Get the cursor position and find out how far it was to the
     ; end of the line.
     ld a, (CursorX)
@@ -2049,24 +1986,24 @@ nextline:
     sla a               ; Now, double this and add it to HL. This is the new address.
     ld c, a
     ld b, 0
+    add hl, bc          ; Now create new address.
     call namefill       ; Fill the rest of the line
-    add hl, bc           ; Now create new address.
-    ccf                 ; Next, check if we're past the end of the screen.
+    ccf
     push hl
-      ld bc, $05C0
+      ld bc, SCREEN_END ; Check if we got to the bottom of the screen
       sbc hl, bc
-      jp m, +
-      ld a, 1            ; If we are, set the scroll flag on... we scroll from now on.
+      jp c, +
+      ld a, 1           ; If we are, set the scroll flag on... we scroll from now on.
       ld (ScrollFlag), a
   +:pop hl
     push hl
-      ld bc, $0700       ; Next, check if we're at the end of VRAM
+      ld bc, NAME_TABLE_END ; Next, check if we're at the end of VRAM
       sbc hl, bc
     pop hl
-    jp m, +
-    ld hl, 0             ; If we are, return to the top of VRAM.
-  +:ld (VRAMAdr), hl     ; Now, save our VRAM address.
-    ld bc, $40           ; Clear the new line
+    jp c, +
+    ld hl, NAME_TABLE_START ; If we are, return to the top of VRAM.
+  +:ld (VRAMAddress), hl ; Now, save our VRAM address.
+    ld a, 32*2           ; Clear the new line
     call namefill
     ld a, (ScrollFlag)      ; Load the Scroll flag and check if it's set.
     cp 0
@@ -2094,33 +2031,23 @@ noScroll:
   pop af
   ret
 
-; Fill the nametable from HL with BC bytes.
+; Fill the nametable from HL with A bytes.
 namefill:
   push af
   push bc
-  push de
-  push hl
-    ld a, b      ; Wait for blanking period
-    or c
-    jp z, +
-    push bc     ; Save the counter for later.
-      ld c, $bf  ; Control port
-      ld a, $78  ; Set nametable base bits
-      or h      ; Get remaining bits
-      out (c), l ; Output lower-order bits
-      out (c), a ; Output upper bits + control
-      ; Now, zero out the region
-    pop hl    ; Get our counter
-    ld a, 0
-    ld de, 1
-    ld c, $be
-    ccf
+    ; Do nothing for count = 0
+    or a
+    jr z, +
+    ld c, VDP_ADDRESS
+    out (c), l ; Output lower-order bits
+    out (c), h ; Output upper bits + control
+    ; Now, zero out the region
+    ld b,a
+    xor a
+    ld c, VDP_DATA
   -:out (c), a ; Output the character
-    sbc hl, de
-    jp nz, -
-+:pop hl
-  pop de
-  pop bc
+    djnz -
++:pop bc
   pop af
   ret
 .ends
