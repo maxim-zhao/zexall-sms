@@ -1,6 +1,6 @@
-.define FastTestsFirst 1  ; if 1 then tests are ordered with the fastest to complete first
+.define FastTestsFirst 1 ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 0 ; if 0 then undocumented flags get checked too
+.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
@@ -296,18 +296,25 @@ Tests:
 .endm
 
 ; <adc|sbc> hl, <bc|de|hl|sp> (38,912 cycles)
+; Opcode: $ed %01sso010
+; o = 0 for sbc, 1 for adc
+; ss = bc|de|hl|sp
 adc16:
-  TestData $ed, $42, 0, 0, $832c, $4f88, $f22b, $b339, $7e1f, $1563, $d3, $89, $465e
-  TestData   0, $38, 0, 0,     0,     0,     0, $f821,     0,     0,   0,   0,     0 ; (1024 cycles)
-  TestData   0,   0, 0, 0,     0,     0,     0,    -1,    -1,    -1, $d7,   0,    -1 ; (38 cycles)
+  ;        <---- opcode ---->  <memop> <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData $ed, $42, $00, $00, $832c, $4f88, $f22b, $b339, $7e1f, $1563, $d3, $89, $465e
+  TestData   0, $38,   0,   0,     0,     0,     0, $f821,     0,     0,   0,   0,     0 ; (1024 cycles)
+  TestData   0,   0,   0,   0,     0,     0,     0,    -1,    -1,    -1, $d7,   0,    -1 ; (38 cycles)
   CRCs $f39089a0 $d48ad519
   MessageString "<adc|sbc> hl, <bc|de|hl|sp>.."
 
 ; add hl, <bc|de|hl|sp> (19,456 cycles)
+; Opcode: $00ss1001
+; ss = bc|de|hl|sp
 add16:
-  TestData 9, 0, 0, 0, $c4a5, $c4c7, $d226, $a050, $58ea, $8566, $c6, $de, $9bc9
-  TestData $30, 0, 0, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0 ; (512 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, $d7, 0, -1 ; (38 cycles)
+  ;        <---- opcode ---->  <memop> <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData $09, $00, $00, $00, $c4a5, $c4c7, $d226, $a050, $58ea, $8566, $c6, $de, $9bc9
+  TestData $30, $00, $00, $00, $0000, $0000, $0000, $f821, $0000, $0000, $00, $00, $0000 ; (512 cycles)
+  TestData $00, $00, $00, $00, $0000, $0000, $0000,    -1,    -1,    -1, $d7, $00,    -1 ; (38 cycles)
   CRCs $1165fc90 $d9a4ca05
   MessageString "add hl, <bc|de|hl|sp>........"
 
