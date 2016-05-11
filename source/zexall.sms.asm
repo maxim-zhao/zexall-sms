@@ -1,6 +1,6 @@
 .define FastTestsFirst 1  ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
+.define DocumentedOnly 0 ; if 0 then undocumented flags get checked too
 ;.define IncludeR 1 ; if 1 then R register will be included in state
 
 ; zexall.asm - Z80 instruction set exerciser
@@ -954,7 +954,7 @@ TestLoop:
       cp HALT_OPCODE
    +: call nz, Test    ; execute the test instruction
 .if UseSDSCDebugConsole == 0
-      call smsprintslash
+      call UpdateProgressIndicator
 .endif ; UseSDSCDebugConsole == 0
   ++: call count      ; increment the Counter
       call nz, shift   ; shift the scan bit
@@ -1291,9 +1291,11 @@ PrintHex32:
   push bc
   push hl
     ld b, 4
-  -:ld a, (hl)
-    call PrintHex8
-    inc hl
+  -:push bc
+      ld a, (hl)
+      call +
+      inc hl
+    pop bc
     djnz -
   pop hl
   pop bc
@@ -1301,35 +1303,25 @@ PrintHex32:
   ret
 
 ; display byte in a
-PrintHex8:
-  push af
++:push af
     .rept 4
     rrca
     .endr
-    call PrintHex4
+    call +
   pop af
 ; fall through
 
 ; display low nibble in a
-PrintHex4:
-  push af
-  push bc
-  push de
++:push bc
   push hl
     and $0f
     cp 10
     jp c, +
     add a, 'a'-'9'-1
   +:add a, '0'
-.if UseSDSCDebugConsole == 1
-    call sdscprint
-.else
-    call smsprint
-.endif ; UseSDSCDebugConsole == 1
+    call PrintChar
   pop hl
-  pop de
   pop bc
-  pop af
   ret
 
 OutputText:
@@ -1340,11 +1332,7 @@ OutputText:
 -:  ld a, (de)
     cp STREND
     jr z, +
-.if UseSDSCDebugConsole == 1
-    call sdscprint
-.else
-    call smsprint
-.endif ; UseSDSCDebugConsole
+    call PrintChar
     inc de
     jr -
 +:pop hl
@@ -1747,7 +1735,7 @@ SMSInitialise:
   ret
 
 
-sdscprint:
+PrintChar:
   cp $0d
   jp nz, sdscprint_out
   ld a, $0a
@@ -1881,34 +1869,28 @@ WaitForVBlank:
 
 
 ; Code to print slash between executions
-smsprintslash:
-  push af
-    ; Increment the counter
-    ld a, (SlashCounter)
-    inc a
-    ld (SlashCounter), a
-    cp '/' ; When it's a slash, print it
-    call z, printslashvblank
-    cp '\'
-    call z, printslashvblank
-  pop af
+UpdateProgressIndicator:
+  ; Increment the counter
+  ld a, (SlashCounter)
+  inc a
+  ld (SlashCounter), a
+  cp '/' ; When it's a slash, print it
+  jr z, +
+  cp '\'
+  jr z, +
   ret
 
-printslashvblank:
-  push af
++:push af
   push bc
-  push de
   push hl
-
     call WaitForVBlank
-
-    sub ' '       ; Shift into our font range
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
     out (c), l
     out (c), h
 
     ; Print the char twice (but don't move the cursor on)
+    sub ' '       ; Shift into our font range
     ld b, 0
     ld c, VDP_DATA
     out (c), a     ; Output the character
@@ -1916,7 +1898,6 @@ printslashvblank:
     out (c), a     ; Output the character
     out (c), b
   pop hl
-  pop de
   pop bc
   pop af
   ret
@@ -1925,11 +1906,8 @@ printslashvblank:
 ; Code to print a character on the screen. Does stuff like handle
 ; line feeds, scrolling, etc.
 
-smsprint:
-  push af
-  push bc
+PrintChar:
   push de
-  push hl
     call WaitForVBlank
 
     ; First, write the character (in a) to the screen
@@ -1967,10 +1945,7 @@ doneprint:
     ld a, (CursorX)
     cp 32
     jp z, nextline
-  pop hl
   pop de
-  pop bc
-  pop af
   ret
 
   ; Here we do the job of scrolling the display, computing the
@@ -2025,10 +2000,7 @@ doScroll:
 noScroll:
     ld a, 0              ; Reset the cursor X position to 0
     ld (CursorX), a
-  pop hl
   pop de
-  pop bc
-  pop af
   ret
 
 ; Fill the nametable from HL with A bytes.
