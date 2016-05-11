@@ -1354,9 +1354,9 @@ Message_Done:
 Message_OK:
   .asc "OK", NEWLINE, STREND
 Message_ActualCRC:
-  .asc "   CRC:", STREND
+  .asc NEWLINE, "CRC ", STREND
 Message_ExpectedCRC:
-  .asc " expected:", STREND
+  .asc " expected ", STREND
 Message_NewLine:
   .asc NEWLINE, STREND
 .ends
@@ -1959,10 +1959,10 @@ nextline:
     ld a, 32
     sub b
     sla a               ; Now, double this and add it to HL. This is the new address.
+    call namefill       ; Fill the rest of the line
     ld c, a
     ld b, 0
     add hl, bc          ; Now create new address.
-    call namefill       ; Fill the rest of the line
     ccf
     push hl
       ld bc, SCREEN_END ; Check if we got to the bottom of the screen
