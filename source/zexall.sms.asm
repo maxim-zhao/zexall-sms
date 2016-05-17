@@ -91,8 +91,10 @@ banksize $4000
 banks 1
 .endro
 
+; Structs
+
 .struct MachineState
-  memop dw
+  memop dw ; This is always the target of any memory write
   iy    dw
   ix    dw
   hl    dw
@@ -101,6 +103,14 @@ banks 1
   f     db
   a     db
   sp    dw
+.endst
+
+.struct TestCase
+  Opcode1       db
+  Opcode2       db
+  Opcode3       db
+  Opcode4       db
+  MachineState  instanceof MachineState
 .endst
 
 .struct Permuter
@@ -119,6 +129,7 @@ banks 1
   MachineStateBeforeTest  instanceof MachineState ; CRCs are dependent on the location of this so it needs to stay at $c070...
   PauseFlag               db
   Test                    dsb 100+1 ; WLA DX doesn't (?) have a way to make this auto-sized
+;  CaseCounter             dsb 4
 .ends
 
 .if DocumentedOnly == 1
@@ -145,6 +156,7 @@ banks 1
   im 1
   ld sp, $dff0
   jp Start
+  
 .ends
 
 .org $0066
@@ -162,55 +174,55 @@ banks 1
   retn
 .ends
 
-; For the purposes of this test program, the machine state consists of:
-; a 2 byte memory operand, followed by
-; the registers iy, ix, hl, de, bc, af, sp
-; for a total of 16 bytes.
+/*
+For the purposes of this test program, the machine state consists of:
+* a 2 byte memory operand, followed by
+* the registers iy, ix, hl, de, bc, af, sp
+for a total of 16 bytes.
 
-; The program tests instructions (or groups of similar instructions)
-; by cycling through a sequence of machine states, executing the test
-; instruction for each one and running a 32-bit crc over the resulting
-; machine states.  At the end of the sequence the crc is compared to
-; an expected value that was found empirically on a real Z80.
+The program tests instructions (or groups of similar instructions)
+by cycling through a sequence of machine states, executing the test
+instruction for each one and running a 32-bit crc over the resulting
+machine states.  At the end of the sequence the crc is compared to
+an expected value that was found empirically on a real Z80.
 
-; A test case is defined by a descriptor which consists of:
-; a flag mask byte, 
-; the base case, 
-; the increment vector, 
-; the shift vector, 
-; the expected crc, 
-; a short descriptive message.
-;
-; The flag mask byte is used to prevent undefined flag bits from
-; influencing the results.  Documented flags are as per Mostek Z80
-; Technical Manual.
-;
-; The next three parts of the descriptor are 20 byte vectors
-; corresponding to a 4 byte instruction and a 16 byte machine state.
-; The first part is the base case, which is the first test case of
-; the sequence.  This base is then modified according to the next 2
-; vectors.  Each 1 bit in the increment vector specifies a bit to be
-; cycled in the form of a binary counter.  For instance, if the byte
-; corresponding to the accumulator is set to $ff in the increment
-; vector, the test will be repeated for all 256 values of the
-; accumulator.  Note that 1 bits don't have to be contiguous.  The
-; number of test cases 'caused' by the increment vector is equal to
-; 2^(number of 1 bits).  The shift vector is similar, but specifies a
-; set of bits in the test case that are to be successively inverted.
-; Thus the shift vector 'causes' a number of test cases equal to the
-; number of 1 bits in it.
+A test case is defined by a descriptor which consists of:
+* the base case, 
+* the increment vector, 
+* the shift vector, 
+* the expected crc, 
+* a short descriptive message.
 
-; The total number of test cases is the product of those caused by the
-; counter and shift vectors and can easily become unweildy.  Each
-; individual test case can take a few milliseconds to execute, due to
-; the overhead of test setup and crc calculation, so test design is a
-; compromise between coverage and execution time.
+The first three parts of the descriptor are vectors corresponding to 
+a 4 byte instruction (padded with nops) and a multi-byte machine state.
+* The first part is the base case, which is the first test case of
+  the sequence.  This base is then modified according to the next two
+  vectors.
+* Each 1 bit in the increment vector specifies a bit to be
+  cycled in the form of a binary counter.  For instance, if the byte
+  corresponding to the accumulator is set to $ff in the increment
+  vector, the test will be repeated for all 256 values of the
+  accumulator.  Note that 1 bits don't have to be contiguous.  The
+  number of test cases 'caused' by the increment vector is equal to
+  2^(number of 1 bits).
+* The shift vector is similar, but specifies a set of bits in the test 
+  case that are to be successively inverted. Thus the shift vector 
+  'causes' a number of test cases equal to the number of 1 bits in it,
+  plus 1 (with all bits at their initial values).
 
-; This program is designed to detect differences between
-; implementations and is not ideal for diagnosing the causes of any
-; discrepancies.  However, provided a reference implementation (or
-; real system) is available, a failing test case can be isolated by
-; hand using a binary search of the test space.
+The total number of test cases is the product of those caused by the
+counter and shift vectors and can easily become unweildy.  Each
+individual test case can take a few milliseconds to execute, due to
+the overhead of test setup and crc calculation, so test design is a
+compromise between coverage and execution time.
+
+This program is designed to detect differences between
+implementations and is not ideal for diagnosing the causes of any
+discrepancies.  However, provided a reference implementation (or
+real system) is available, a failing test case can be isolated by
+hand using a binary search of the test space.
+*/
+
 .section "Start" free
 Start:
   ; Initialisation
@@ -265,11 +277,35 @@ Tests:
   .printt "missing parameter"
   .fail
 .endif
-.db \1, \2, \3, \4          ; insn1, insn2, insn3, insn4
-.dw \5, \6, \7, \8, \9, \10 ; memop, riy, rix, rhl, rde, rbc
+.dstruct Test\@ instanceof TestCase data \1, \2, \3, \4&$ff, \5, \6, \7, \8, \9, \10, \11, \12&$ff, \13
+/*
+.db \1, \2, \3, \4          ; Instruction opcodes
+.dw \5, \6, \7, \8, \9, \10 ; memop, iy, ix, hl, de, bc
 .db \11                     ; flags
-.db \12                     ; acc
-.dw \13                     ; rsp
+.db \12                     ; a
+.dw \13                     ; sp
+*/
+.endm
+.macro TestData3
+.if NARGS != 12
+  .printt "missing parameter"
+  .fail
+.endif
+  TestData \1, \2, \3, 0, \4, \5, \6, \7, \8, \9, \10, \11, \12
+.endm
+.macro TestData2
+.if NARGS != 11
+  .printt "missing parameter"
+  .fail
+.endif
+  TestData \1, \2, 0, 0, \3, \4, \5, \6, \7, \8, \9, \10, \11
+.endm
+.macro TestData1
+.if NARGS != 10
+  .printt "missing parameter"
+  .fail
+.endif
+  TestData \1, 0, 0, 0, \2, \3, \4, \5, \6, \7, \8, \9, \10
 .endm
 
 ; Strings with control characters
@@ -295,122 +331,202 @@ Tests:
 .endif
 .endm
 
-; <adc|sbc> hl, <bc|de|hl|sp> (38,912 cycles)
+; <adc|sbc> hl, <bc|de|hl|sp> (72704 cases)
 ; Opcode: $ed %01sso010
 ; o = 0 for sbc, 1 for adc
 ; ss = bc|de|hl|sp
 adc16:
-  ;        <---- opcode ---->  <memop> <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
-  TestData $ed, $42, $00, $00, $832c, $4f88, $f22b, $b339, $7e1f, $1563, $d3, $89, $465e
-  TestData   0, $38,   0,   0,     0,     0,     0, $f821,     0,     0,   0,   0,     0 ; (1024 cycles)
-  TestData   0,   0,   0,   0,     0,     0,     0,    -1,    -1,    -1, $d7,   0,    -1 ; (38 cycles)
-  CRCs $f39089a0 $d48ad519
+  ;        <-- opcode ---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData2 $ed, %01000010, $832c, $4f88, $f22b, $b339, $7e1f, $1563, $d3, $89, $465e
+  TestData2   0, %00111000,     0,     0,     0, $f821,     0,     0,   0,   0,     0 ; 10 bits -> 1024 permutations
+  TestData2   0,         0,     0,     0,     0, $ffff, $ffff, $ffff, $d7,   0, $ffff ; 70 bits ->   71 permutations
+  CRCs $f39089a0 $d48ad519                                           ; ^^- why bother?
   MessageString "<adc|sbc> hl, <bc|de|hl|sp>.."
 
-; add hl, <bc|de|hl|sp> (19,456 cycles)
+; add hl, <bc|de|hl|sp> (36352 cases)
 ; Opcode: $00ss1001
 ; ss = bc|de|hl|sp
 add16:
-  ;        <---- opcode ---->  <memop> <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
-  TestData $09, $00, $00, $00, $c4a5, $c4c7, $d226, $a050, $58ea, $8566, $c6, $de, $9bc9
-  TestData $30, $00, $00, $00, $0000, $0000, $0000, $f821, $0000, $0000, $00, $00, $0000 ; (512 cycles)
-  TestData $00, $00, $00, $00, $0000, $0000, $0000,    -1,    -1,    -1, $d7, $00,    -1 ; (38 cycles)
-  CRCs $1165fc90 $d9a4ca05
+  ;        <-opcode -> <memop> <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData1 %00001001, $c4a5, $c4c7, $d226, $a050, $58ea, $8566, $c6, $de, $9bc9
+  TestData1 %00110000,     0,     0,     0, $f821,     0,     0,   0,   0,     0 ;  9 bits -> 512 permutations
+  TestData1         0,     0,     0,     0, $ffff, $ffff, $ffff, $d7,   0, $ffff ; 70 bits ->  71 permutations
+  CRCs $1165fc90 $d9a4ca05                                      ; ^^- why bother?
   MessageString "add hl, <bc|de|hl|sp>........"
 
-; add ix, <bc|de|ix|sp> (19,456 cycles)
+; add ix, <bc|de|ix|sp> (36352 cases)
+; Opcode: $dd $00ss1001
+; ss = bc|de|hl|sp
 add16x:
-  TestData $dd, 9, 0, 0, $ddac, $c294, $635b, $33d3, $6a76, $fa20, $94, $68, $36f5
-  TestData $dd, 9, 0, 0, $ddac, $c294, $635b, $33d3, $6a76, $fa20, $94, $68, $36f5
-  TestData 0, $30, 0, 0, 0, 0, $f821, 0, 0, 0, 0, 0, 0 ; (512 cycles)
-  TestData 0, 0, 0, 0, 0, 0, -1, 0, -1, -1, $d7, 0, -1 ; (38 cycles)
-  CRCs $c359f7a2 $b1df8ec0
+  ;        <-- opcode ---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData2 $dd, %00001001, $ddac, $c294, $635b, $33d3, $6a76, $fa20, $94, $68, $36f5
+  TestData2   0, %00110000,     0,     0, $f821,     0,     0,     0,   0,   0,     0 ;  9 bits -> 512 permutations
+  TestData2   0,         0,     0,     0, $ffff,     0, $ffff, $ffff, $d7,   0, $ffff ; 70 bits ->  71 permutations
+  CRCs $c359f7a2 $b1df8ec0                                           ; ^^- why bother?
   MessageString "add ix, <bc,de,ix,sp>........"
 
-; add iy, <bc|de|iy|sp> (19,456 cycles)
+; add iy, <bc|de|iy|sp> (36352 cases)
+; Opcode: $fd $00ss1001
+; ss = bc|de|hl|sp
 add16y:
-  TestData $fd, 9, 0, 0, $c7c2, $f407, $51c1, $3e96, $0bf4, $510f, $92, $1e, $71ea
-  TestData 0, $30, 0, 0, 0, $f821, 0, 0, 0, 0, 0, 0, 0 ; (512 cycles)
-  TestData 0, 0, 0, 0, 0, -1, 0, 0, -1, -1, $d7, 0, -1 ; (38 cycles)
-  CRCs $5fc828e9 $39c8589b
+  ;        <-- opcode ---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData2 $fd, %00001001, $c7c2, $f407, $51c1, $3e96, $0bf4, $510f, $92, $1e, $71ea
+  TestData2   0, %00110000,     0, $f821,     0,     0,     0,     0,   0,   0,     0 ;  9 bits -> 512 permutations
+  TestData2   0,         0,     0, $ffff,     0,     0, $ffff, $ffff, $d7,   0, $ffff ; 70 bits ->  71 permutations
+  CRCs $5fc828e9 $39c8589b                                           ; ^^- why bother?
   MessageString "add iy, <bc,de,iy,sp>........"
 
-; aluop a, nn (28, 672 cycles)
+; aluop a, nn (196608 cases)
+; Opcodes:
+; %11[000]110 $nn add a, n
+; %11[001]110 $nn adc a, n
+; %11[010]110 $nn sub n
+; %11[011]110 $nn sbc a, n
+; %11[100]110 $nn and n
+; %11[101]110 $nn xor n
+; %11[110]110 $nn or n
+; %11[111]110 $nn cp n
 alu8i:
-  TestData $c6, 0, 0, 0, $9140, $7e3c, $7a67, $df6d, $5b61, $0b29, $10, $66, $85b2
-  TestData $38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (2048 cycles)
-  TestData 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (14 cycles)
+  ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData2 %11000110,   0, $9140, $7e3c, $7a67, $df6d, $5b61, $0b29, $10, $66, $85b2
+  TestData2         0, $ff,     0,     0,     0,     0,     0,     0, $d7,   0,     0  ; 14 bits -> 16384 permutations
+  TestData2 %00111000,   0,     0,     0,     0,     0,     0,     0,   0, $ff,     0  ; 11 bits ->    12 permutations
   CRCs $48799360 $51c19c2e
   MessageString "aluop a, nn.................."
 
-; aluop a, <b|c|d|e|h|l|(hl)|a> (753,664 cycles)
+; aluop a, <b|c|d|e|h|l|(hl)|a> (884736 cases)
+; Opcodes:
+; %10[000]sss add a, sss
+; %10[001]sss adc a, sss
+; %10[010]sss sub sss
+; %10[011]sss sbc sss
+; %10[100]sss and sss
+; %10[101]sss xor sss
+; %10[110]sss or sss
+; %10[111]sss cp sss
+; sss = b|c|d|e|h|l|(hl)|a
 alu8r:
-  TestData $80, 0, 0, 0, $c53e, $573a, $4c4d, MachineStateBeforeTest, $e309, $a666, $d0, $3b, $adbb
-  TestData $3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (16, 384 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, 0, 0 ; (46 cycles)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData1 %10000000, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111111,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 14 bits -> 16384 permutations
+  TestData1         0, $ffff,     0,     0,                            0, $ffff, $ffff, $d7,   0,     0 ; 11 bits ->    11 permutations
   CRCs $5ddf949b $1ec10a46
   MessageString "aluop a,<b|c|d|e|h|l|(hl)|a>."
 
-; aluop a, <ixh|ixl|iyh|iyl> (376,832 cycles)
+; aluop a, <ixh|ixl|iyh|iyl> (385024 cases)
+; Opcodes:
+; <$dd|$fd> %10[000]10[x] add a, i[xy][hl]
+; <$dd|$fd> %10[001]10[x] adc a, i[xy][hl]
+; <$dd|$fd> %10[010]10[x] sub i[xy][hl]
+; <$dd|$fd> %10[011]10[x] sbc i[xy][hl]
+; <$dd|$fd> %10[100]10[x] and i[xy][hl]
+; <$dd|$fd> %10[101]10[x] xor i[xy][hl]
+; <$dd|$fd> %10[110]10[x] or i[xy][hl]
+; <$dd|$fd> %10[111]10[x] cp i[xy][hl]
 alu8rx:
-  TestData $dd, $84, 0, 0, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
-  TestData $20, $39, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0 ; (8, 192 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, 0, 0 ; (46 cycles)
-  CRCs $a4026d5a $a886cc44
+  ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData2 $dd, %10000100, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
+  TestData2 $20, %00111001,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 13 bits -> 8192 permutations
+  TestData2   0,         0, $00ff,     0,     0,     0, $ffff, $ffff, $d7,   0,     0 ; 46 bits ->   47 permutations
+  CRCs $a4026d5a $a886cc44   ; ^^------------------------^^^^---^^^^- why bother? Why not cycle bits in iy/ix?
   MessageString "aluop a, <ixh|ixl|iyh|iyl>..."
 
-; aluop a, (<ix|iy>+1) (229,376 cycles)
+; aluop a, (<ix|iy>+1) (245760 cases)
+; Opcodes:
+; <$dd|$fd> %10[000]110 +1 add a, (i[xy]+1
+; <$dd|$fd> %10[001]110 +1 adc a, (i[xy]+1
+; <$dd|$fd> %10[010]110 +1 sub i[xy][hl]
+; <$dd|$fd> %10[011]110 +1 sbc i[xy][hl]
+; <$dd|$fd> %10[100]110 +1 and i[xy][hl]
+; <$dd|$fd> %10[101]110 +1 xor i[xy][hl]
+; <$dd|$fd> %10[110]110 +1 or i[xy][hl]
+; <$dd|$fd> %10[111]110 +1 cp i[xy][hl]
+; ix and iy point at either the high byte of memop or the low byte of iy
+; - TODO possibly a mistake as the test cycles through bits in the low byte of memop?
 alu8x:
-  TestData $dd, $86, $01, 0, $90b7, MachineStateBeforeTest, MachineStateBeforeTest, $32fd, $406e, $c1dc, $45, $6e, $e5fa
-  TestData $20, $38, 0, 0, 0, 1, 1, 0, 0, 0, 0, -1, 0 ; (16384 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, 0, 0  ; (14 cycles)
+  ;         <-----opcode-----> <memop>                         <iy>                          <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData3 $dd, %10000110, +1, $90b7, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, $32fd, $406e, $c1dc, $45, $6e, $e5fa
+  TestData3 $20, %00111000,  0,     0,                            1,                            1,     0,     0,     0,   0, $ff,     0 ; 14 bits -> 16384 permutations
+  TestData3   0,         0,  0, $00ff,                            0,                            0,     0,     0,     0, $d7,   0,     0 ; 14 bits ->    15 permutations
   CRCs $2bc2d52d $e334341a
   MessageString "aluop a, (<ix|iy>+1)........."
 
-; bit n, (<ix|iy>+1) (2048 cycles)
-bitx: 
-  TestData $dd, $cb, 1, $46, $2075, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $3cfc, $a79a, $3d74, $51, $27, $ca14
-  TestData $20, 0, 0, $38, 0, 0, 0, 0, 0, 0, $53, 0, 0 ; (256 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (8 cycles)
-  CRCs $55c9ea76 $55c9ea76
+; bit n, (<ix|iy>+1) (2304 cases)
+; Opcode:
+; <$dd|$fd> $cb +1 %01nnn110
+; ix and iy point to one byte before memop, and we cycle the bits in the following byte
+bitx:
+  ;        <-------opcode-------> <memop>                           <iy>                            <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData $dd, $cb, 1, $01000110, $2075, MachineStateBeforeTest.memop-1, MachineStateBeforeTest.memop-1, $3cfc, $a79a, $3d74, $51, $27, $ca14
+  TestData $20,   0, 0, %00111000,     0,                              0,                              0,     0,     0,     0, $53,   0,     0 ; 8 bits -> 256 permutations
+  TestData   0,   0, 0,         0, $00ff,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 8 bits ->   9 permutations
+  CRCs $55c9ea76 $55c9ea76                                                                                                   ;  ^^- why bother?
   MessageString "bit n, (<ix|iy>+1)..........."
 
-; bit n, <b|c|d|e|h|l|(hl)|a> (49,152 cycles)
+; bit n, <b|c|d|e|h|l|(hl)|a> (50176 cases)
+; Opcode:
+; $cb %010nnnss
+; nnn = bit number
+; ss = b|c|d|e|h|l|(hl)|a
+; TODO: cycles unused byte of memop
 bitz80:
-  TestData $cb, $40, 0, 0, $3ef1, $9dfc, $7acc, MachineStateBeforeTest, $be61, $7a86, $50, $24, $1998
-  TestData 0, $3f, 0, 0, 0, 0, 0, 0, 0, 0, $53, 0, 0  ; (1024 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, 0, -1, 0  ; (48 cycles)
+  ;         <---opcode---> <memop>  <iy>   <ix>                          <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData2 $cb, %01000000, $3ef1, $9dfc, $7acc, MachineStateBeforeTest.memop, $be61, $7a86, $50, $24, $1998
+  TestData2   0, %00111111,     0,     0,     0,                            0,     0,     0, $53,   0,     0 ; 10 bits -> 1024 permutations
+  TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff,   0, $ff,     0 ; 48 bits ->   49 permutations
   CRCs $4b37451d $a937a161
   MessageString "bit n, <b|c|d|e|h|l|(hl)|a>.."
 
-; cpd<r> (1) (6144 cycles)
+; cpd<r> (1) (14336 cases)
+; Opcodes:
+; $ed $a9 cpd   = cp (hl); dec hl; dec bc
+; $ed $b9 cpdr  = cpd until bc = 0
+; hl points to the end of the machine state
+; bc is set to 1, 3, 9, 11 - originally due to a porting error, originally only 1 and 9 were tested
+; a and f are permuted
 cpd1:
-  TestData $ed, $a9, 0, 0, $c7b6, $72b4, $18f6, MachineStateBeforeTest+14, $8dbd, 1, $c0, $30, $94a3
-  TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 010, 0, -1, 0  ; (1024 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
+  ;         <opcode> <memop>  <iy>   <ix>                       <hl>   <de> <bc> <a>  <f>   <sp>
+  TestData2 $ed, $a9, $c7b6, $72b4, $18f6, MachineStateBeforeTest.sp, $8dbd,  1, $c0, $30, $94a3
+  TestData2   0, $10,     0,     0,     0,                         0,     0, 10,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData2   0,   0,     0,     0,     0,                         0,     0,  0, $d7,   0,     0 ;  6 bits ->    7 permutations
   CRCs $6b7eb6bf $4366d8a5
   MessageString "cpd<r>......................."
 
-; cpi<r> (1) (6144 cycles)
+; cpi<r> (1) (14336 cycles)
 cpi1:
-  TestData $ed, $a1, 0, 0, $4d48, $af4a, $906b, MachineStateBeforeTest, $4e71, 1, $93, $6a, $907c
-  TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 010, 0, -1, 0  ; (1024 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
+; Opcodes:
+; $ed $a1 cpi   = cp (hl); inc hl; dec bc
+; $ed $b1 cpir  = cpd until bc = 0
+; hl points to the end of the machine state
+; bc is set to 1, 3, 9, 11 - originally due to a porting error, originally only 1 and 9 were tested
+; a and f are permuted
+  ;         <opcode> <memop>  <iy>   <ix>                          <hl>   <de> <bc> <a>  <f>   <sp>
+  TestData2 $ed, $a1, $4d48, $af4a, $906b, MachineStateBeforeTest.memop, $4e71,  1, $93, $6a, $907c
+  TestData2 0,   $10,     0,     0,     0,                            0,     0, 10,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData2 0,     0,     0,     0,     0,                            0,     0,  0, $d7,   0,     0 ;  6 bits ->    7 permutations
   CRCs $74baf310 $f52c5c23
   MessageString "cpi<r>......................."
 
-; <daa|cpl|scf|ccf> (65, 536 cycles)
+; <daa|cpl|scf|ccf> (65536 cases)
 daaop:
-  TestData $27, 0, 0, 0, $2141, $09fa, $1d60, $a559, $8d5b, $9079, $04, $8e, $299d
-  TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, -1, 0 ; (65, 536 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
+; Opcodes:
+; $27 daa
+; $2f cpl
+; $37 scf
+; $3f ccf
+; Test coverage is a bit weird: daa depends on af, cpl only on a, scf/ccf only on carry bit.
+; But the count is pretty low so who cares?
+  ;     <opcode> <memop> <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData1 $27, $2141, $09fa, $1d60, $a559, $8d5b, $9079, $04, $8e, $299d
+  TestData1 $18,     0,     0,     0,     0,     0,     0, $d7, $ff,     0 ; 16 bits -> 65536 permutations
+  TestData1   0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->     1 permutation
   CRCs $9b4ba675 $6d2dd213
   MessageString "<daa|cpl|scf|ccf>............"
 
 ; <inc|dec> a (3072 cycles)
 inca: 
   TestData $3c, 0, 0, 0, $4adf, $d5d8, $e598, $8a2b, $a7b0, $431b, $44, $5a, $d030
-  TestData $01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (512 cycles)
+  TestData $01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (512 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
   CRCs $d18815a4 $81fa8100 
   MessageString "<inc|dec> a.................."
@@ -563,15 +679,17 @@ incyl:
 ld161: 
   TestData $ed, $4b, <MachineStateBeforeTest, >MachineStateBeforeTest, $f9a8, $f559, $93a4, $f5ed, $6f96, $d968, $86, $e6, $4bd8
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $4d45a9ac $4d45a9ac
   MessageString "ld <bc|de>, (nnnn)..........."
 
-; ld hl, (nnnn) (16 cycles)
+; ld hl, (nnnn) (16 tests)
+; Opcode: $2a $nnnn
 ld162: 
-  TestData $2a, <MachineStateBeforeTest, >MachineStateBeforeTest, 0, $9863, $7830, $2077, $b1fe, $b9fa, $abb8, $04, $06, $6015
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  ;        <------- opcode ------->                                   <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <a>  <f>   <sp>
+  TestData $2a, <MachineStateBeforeTest, >MachineStateBeforeTest, $00, $9863, $7830, $2077, $b1fe, $b9fa, $abb8, $04, $06, $6015
+  TestData   0,                       0,                       0,   0,     0,     0,     0,     0,     0,     0,   0,   0,     0  ; (0 bits -> 1 permutation)
+  TestData   0,                       0,                       0,   0, $ffff,     0,     0,     0,     0,     0,   0,   0,     0  ; (16 bits -> 16 permutations)
   CRCs $5f972487 $5f972487
   MessageString "ld hl, (nnnn)................"
 
@@ -579,7 +697,7 @@ ld162:
 ld163: 
   TestData $ed, $7b, <MachineStateBeforeTest, >MachineStateBeforeTest, $8dfc, $57d7, $2161, $ca18, $c185, $27da, $83, $1e, $f460
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $7acea11b $7acea11b 
   MessageString "ld sp, (nnnn)................"
 
@@ -587,7 +705,7 @@ ld163:
 ld164: 
   TestData $dd, $2a, <MachineStateBeforeTest, >MachineStateBeforeTest, $ded7, $a6fa, $f780, $244c, $87de, $bcc2, $16, $63, $4c96
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $858bf16d $858bf16d 
   MessageString "ld <ix|iy>, (nnnn)..........."
 
@@ -595,7 +713,7 @@ ld164:
 ld165: 
   TestData $ed, $43, <MachineStateBeforeTest, >MachineStateBeforeTest, $1f98, $844d, $e8ac, $c9ed, $c95d, $8f61, $80, $3f, $c7bf
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0  ; (32 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, $ffff, $ffff, 0, 0, 0  ; (32 cycles)
   CRCs $641e8715 $641e8715 
   MessageString "ld (nnnn), <bc|de>..........."
 
@@ -603,7 +721,7 @@ ld165:
 ld166: 
   TestData $22, <MachineStateBeforeTest, >MachineStateBeforeTest, 0, $d003, $7772, $7f53, $3f72, $64ea, $e180, $10, $2d, $35e9
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
-  TestData 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $a3608b47 $a3608b47 
   MessageString "ld (nnnn), hl................"
 
@@ -611,7 +729,7 @@ ld166:
 ld167: 
   TestData $ed, $73, <MachineStateBeforeTest, >MachineStateBeforeTest, $c0dc, $d1d6, $ed5a, $f356, $afda, $6ca7, $44, $9f, $3f0a
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1  ; (16 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $ffff  ; (16 cycles)
   CRCs $16585fd7 $16585fd7 
   MessageString "ld (nnnn), sp................"
 
@@ -619,7 +737,7 @@ ld167:
 ld168: 
   TestData $dd, $22, <MachineStateBeforeTest, >MachineStateBeforeTest, $6cc3, $0d91, $6900, $8ef8, $e3d6, $c3f7, $c6, $d9, $c2df
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0  ; (32 cycles)
+  TestData 0, 0, 0, 0, 0, $ffff, $ffff, 0, 0, 0, 0, 0, 0  ; (32 cycles)
   CRCs $ba102a6b $ba102a6b 
   MessageString "ld (nnnn), <ix|iy>..........."
 
@@ -643,7 +761,7 @@ ld16ix:
 ld8bd: 
   TestData $0a, 0, 0, 0, $b3a8, $1d2a, $7f8e, $42ac, MachineStateBeforeTest, MachineStateBeforeTest, $c6, $b1, $ef8e
   TestData $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, -1, 0 ; (22 cycles)
+  TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, $ffff, 0 ; (22 cycles)
   CRCs $2439f60d $2439f60d 
   MessageString "ld a, <(bc)|(de)>............"
 
@@ -651,7 +769,7 @@ ld8bd:
 ld8im:
   TestData 6, 0, 0, 0, $c407, $f49d, $d13d, $0339, $de89, $7455, $53, $c0, $5509
   TestData $38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (8 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (8 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (8 cycles)
   CRCs $f1dab556 $f1dab556 
   MessageString "ld <b|c|d|e|h|l|(hl)|a>, nn.."
 
@@ -659,7 +777,7 @@ ld8im:
 ld8imx: 
   TestData $dd, $36, 1, 0, $1b45, MachineStateBeforeTest-1, MachineStateBeforeTest-1, $d5c1, $61c7, $bdc4, $c0, $85, $cd16
   TestData $20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (16 cycles)
+  TestData 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (16 cycles)
   CRCs $0b6fd95c $0b6fd95c 
   MessageString "ld (<ix|iy>+1), nn..........."
 
@@ -667,7 +785,7 @@ ld8imx:
 ld8ix1: 
   TestData $dd, $46, 0, 0, $d016, MachineStateBeforeTest, MachineStateBeforeTest, $4260, $7f39, $0404, $97, $4a, $d085
   TestData $20, $18, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (64 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $6db05c44 $6db05c44
   MessageString "ld <b|c|d|e>, (<ix|iy>+1)...."
 
@@ -675,7 +793,7 @@ ld8ix1:
 ld8ix2: 
   TestData $dd, $66, 0, 0, $84e0, MachineStateBeforeTest, MachineStateBeforeTest, $9c52, $a799, $49b6, $93, $00, $eead
   TestData $20, $08, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (32 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $3e094165 $3e094165
   MessageString "ld <h|l>, (<ix|iy>+1)........"
 
@@ -683,7 +801,7 @@ ld8ix2:
 ld8ix3:
   TestData $dd, $7e, 0, 0, $d8b6, MachineStateBeforeTest, MachineStateBeforeTest, $c612, $df07, $9cd0, $43, $a6, $a0e5
   TestData $20, 0, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (16 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $5407eb38 $5407eb38
   MessageString "ld a, (<ix|iy>+1)............"
 
@@ -691,7 +809,7 @@ ld8ix3:
 ld8ixy:
   TestData $dd, $26, 0, 0, $3c53, $4640, $e179, $7711, $c107, $1afa, $81, $ad, $5d9b
   TestData $20, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (4 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (8 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (8 cycles)
   CRCs $24e8828b $24e8828b 
   MessageString "ld <ixh|ixl|iyh|iyl>, nn....."
 
@@ -699,7 +817,7 @@ ld8ixy:
 ld8rr: 
   TestData $40, 0, 0, 0, $72a4, $a024, $61ac, MachineStateBeforeTest, $82c7, $718f, $97, $8f, $ef8e
   TestData $3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (64 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, -1, 0 ; (54 cycles)
+  TestData 0, 0, 0, 0, $ff, 0, 0, 0, $ffff, $ffff, $d7, $ffff, 0 ; (54 cycles)
   CRCs $5d1e1c64 $5d1e1c64 
   MessageString "ld <bcdehla>, <bcdehla>......"
 
@@ -707,7 +825,7 @@ ld8rr:
 ld8rrx: 
   TestData $dd, $40, 0, 0, $bcc5, MachineStateBeforeTest, MachineStateBeforeTest, MachineStateBeforeTest, $2fc2, $98c0, $83, $1f, $3bcd
   TestData $20, $3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (128 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, -1, 0 ; (54 cycles)
+  TestData 0, 0, 0, 0, $ff, 0, 0, 0, $ffff, $ffff, $d7, $ffff, 0 ; (54 cycles)
   CRCs $4c9e4b7b $4c9e4b7b 
   MessageString "ld <bcdexya>, <bcdexya>......"
 
@@ -715,7 +833,7 @@ ld8rrx:
 lda: 
   TestData $32, <MachineStateBeforeTest, >MachineStateBeforeTest, 0, $fd68, $f4ec, $44a0, $b543, $0653, $cdba, $d2, $4f, $1fd8
   TestData $08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycle)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, -1, 0 ; (22 cycles)
+  TestData 0, 0, 0, 0, $ff, 0, 0, 0, 0, 0, $d7, $ffff, 0 ; (22 cycles)
   CRCs $c9262de5 $c9262de5 
   MessageString "ld a, (nnnn) / ld (nnnn), a.."
 
@@ -723,7 +841,7 @@ lda:
 ldd1: 
   TestData $ed, $a8, 0, 0, $9852, $68fa, $66a1, MachineStateBeforeTest+3, MachineStateBeforeTest+1, 1, $c1, $68, $20b7
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
   CRCs $f82148b7 $f82148b7 
   MessageString "ldd<r> (1)..................."
 
@@ -731,7 +849,7 @@ ldd1:
 ldd2: 
   TestData $ed, $a8, 0, 0, $f12e, $eb2a, $d5ba, MachineStateBeforeTest+3, MachineStateBeforeTest+1, 2, $47, $ff, $fbe4
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
   CRCs $e22ab30f $8167f03a 
   MessageString "ldd<r> (2)..................."
 
@@ -739,7 +857,7 @@ ldd2:
 ldi1: 
   TestData $ed, $a0, 0, 0, $fe30, $03cd, $0006, MachineStateBeforeTest+2, MachineStateBeforeTest, 1, $04, $60, $2688
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
   CRCs $470098d4 $2a3fdeb0 
   MessageString "ldi<r> (1)..................."
 
@@ -747,14 +865,14 @@ ldi1:
 ldi2:
   TestData $ed, $a0, 0, 0, $4ace, $c26e, $b188, MachineStateBeforeTest+2, MachineStateBeforeTest, 2, $14, $2d, $a39f
   TestData 0, $10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (2 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, $d7, 0, 0  ; (22 cycles)
   CRCs $382fa523 $3a9cfc96 
   MessageString "ldi<r> (2)..................."
 
 ; neg (16,384 cycles)
 negop:
   TestData $ed, $44, 0, 0, $38a2, $5f6b, $d934, $57e4, $d2d6, $4642, $43, $5a, $09cc
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, -1, 0  ; (16, 384 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, $ffff, 0  ; (16, 384 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (1 cycle)
   CRCs $6a3c3bbd $d638dd6a 
   MessageString "neg.........................."
@@ -763,14 +881,14 @@ negop:
 rldop:
   TestData $ed, $67, 0, 0, $91cb, $c48b, $fa62, MachineStateBeforeTest, $e720, $b479, $40, $06, $8ae2
   TestData 0, 8, 0, 0, $ff, 0, 0, 0, 0, 0, 0, 0, 0  ; (512 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, -1, 0  ; (14 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, $ffff, 0  ; (14 cycles)
   CRCs $f7da9257 $9d030f06 
   MessageString "<rrd|rld>...................."
 
 ; <rlca|rrca|rla|rra> (6144 cycles)
 rot8080:
   TestData 7, 0, 0, 0, $cb92, $6d43, $0a90, $c284, $0c53, $f50e, $91, $eb, $40fc
-  TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (1024 cycles)
+  TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (1024 cycles)
   TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $d7, 0, 0  ; (6 cycles)
   CRCs $251330ae $9ba3807c 
   MessageString "<rlca|rrca|rla|rra>.........."
@@ -787,7 +905,7 @@ rotxy:
 rotz80:
   TestData $cb, 0, 0, 0, $cceb, $5d4a, $e007, MachineStateBeforeTest, $1395, $30ee, $43, $78, $3dad
   TestData 0, $3f, 0, 0, 0, 0, 0, 0, 0, 0, $80, 0, 0  ; (128 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $57, -1, 0 ; (53 cycles)
+  TestData 0, 0, 0, 0, $ff, 0, 0, 0, $ffff, $ffff, $57, $ffff, 0 ; (53 cycles)
   CRCs $ee0c828b $150c42ed 
   MessageString "shf/rot <b|c|d|e|h|l|(hl)|a>."
 
@@ -795,7 +913,7 @@ rotz80:
 srz80:
   TestData $cb, $80, 0, 0, $2cd5, $97ab, $39ff, MachineStateBeforeTest, $d14b, $6ab2, $53, $27, $b538
   TestData 0, $7f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (128 cycles)
-  TestData 0, 0, 0, 0, $ff, 0, 0, 0, -1, -1, $d7, -1, 0 ; (62 cycles)
+  TestData 0, 0, 0, 0, $ff, 0, 0, 0, $ffff, $ffff, $d7, $ffff, 0 ; (62 cycles)
   CRCs $90aa19cd $90aa19cd 
   MessageString "<set|res> n, <bcdehl(hl)a>..."
 
@@ -811,7 +929,7 @@ srzx:
 st8ix1:
   TestData $dd, $70, 0, 0, $270d, MachineStateBeforeTest, MachineStateBeforeTest, $b73a, $887b, $99ee, $86, $70, $ca07
   TestData $20, $03, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (64 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0  ; (32 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, $ffff, $ffff, 0, 0, 0  ; (32 cycles)
   CRCs $24c66b95 $24c66b95
   MessageString "ld (<ix|iy>+1), <b|c|d|e>...."
 
@@ -819,7 +937,7 @@ st8ix1:
 st8ix2: 
   TestData $dd, $74, 0, 0, $b664, MachineStateBeforeTest, MachineStateBeforeTest, $e8ac, $b5f5, $aafe, $12, $10, $9566
   TestData $20, $01, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (32 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0  ; (16 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0  ; (16 cycles)
   CRCs $b9b5243c $b9b5243c
   MessageString "ld (<ix|iy>+1), <h|l>........"
 
@@ -827,7 +945,7 @@ st8ix2:
 st8ix3:
   TestData $dd, $77, 0, 0, $67af, MachineStateBeforeTest, MachineStateBeforeTest, $4f13, $0644, $bcd7, $50, $ac, $5faf
   TestData $20, 0, $01, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0  ; (16 cycles)
-  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0  ; (8 cycles)
+  TestData 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (8 cycles)
   CRCs $51c0f862 $51c0f862
   MessageString "ld (<ix|iy>+1), a............"
 
@@ -835,7 +953,7 @@ st8ix3:
 stabd:
   TestData 2, 0, 0, 0, $0c3b, $b592, $6cff, $959e, MachineStateBeforeTest, MachineStateBeforeTest+1, $c1, $21, $bde7
   TestData $18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; (4 cycles)
-  TestData 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, -1, 0  ; (24 cycles)
+  TestData 0, 0, 0, 0, $ffff, 0, 0, 0, 0, 0, 0, $ffff, 0  ; (24 cycles)
   CRCs $257d7a11 $257d7a11 
   MessageString "ld (<bc|de>), a.............."
 .ends
@@ -877,6 +995,9 @@ StartTest:
       ex de, hl
       call OutputText  ; show Test name
       call InitialiseCRC
+;      ld hl, 0
+;      ld (CaseCounter), hl
+;      ld (CaseCounter+2), hl
 
 .define HALT_OPCODE $76      
       
@@ -1173,7 +1294,7 @@ TestCode:
   push de
   push hl
     ld (StackPointerSaved), sp ; save stack pointer
-    ld sp, MachineStateBeforeTest.iy ; point to Test-case machine state
+    ld sp, MachineStateBeforeTest.iy ; point to test-case machine state
       pop iy  ; and load all regs
       pop ix
       pop hl
@@ -1194,7 +1315,7 @@ _InstructionUnderTest:
       push ix
       push iy
     ld sp, (StackPointerSaved) ; restore stack pointer
-    ld hl, (MachineStateBeforeTest.memop) ; copy memory operand
+    ld hl, (MachineStateBeforeTest.memop) ; overwrite memop with initial value
     ld (MachineStateAfterTest.memop), hl
     ld hl, MachineStateAfterTest.f ; flags after Test
     ld a, (hl)
@@ -1215,7 +1336,7 @@ _InstructionUnderTest:
 _TestCodeEnd:
 .define TestCodeSize _TestCodeEnd - TestCode
 .define OffsetOfInstructionUnderTest _InstructionUnderTest - TestCode
-.export TestCodeSize, OffsetOfInstructionUnderTest, OffsetOfFlagMask
+.export TestCodeSize, OffsetOfInstructionUnderTest
 .ends
 
 .section "Text display" free
@@ -1225,7 +1346,7 @@ PrintHex32:
   push af
   push bc
   push hl
-    call WaitForVBlank
+    ;call WaitForVBlank
     ld b, 4
   -:push bc
       ld a, (hl)
@@ -1807,6 +1928,22 @@ WaitForVBlank:
 
 ; Code to print slash between executions
 UpdateProgressIndicator:
+/*
+  push hl
+  push bc
+  push af
+    ld hl, CaseCounter+3
+  -:inc (hl)
+    dec hl
+    jp z, -
+
+    ld hl,CaseCounter
+    call PrintHex32
+  pop af
+  pop bc
+  pop hl
+  ret
+*/
   ; Increment the counter
   ld a, (SlashCounter)
   inc a
@@ -1838,7 +1975,6 @@ UpdateProgressIndicator:
   pop bc
   pop af
   ret
-
 
 ; Code to print a character on the screen. Does stuff like handle
 ; line feeds, scrolling, etc.
