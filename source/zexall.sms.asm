@@ -128,7 +128,9 @@ banks 1
   CRCValue                dsb 4   ; CRC value
   padding                 dsb 4
   MachineStateAfterTest   instanceof MachineState
-  MachineStateBeforeTest  instanceof MachineState ; CRCs are dependent on the location of this so it needs to stay at $c070...
+  ; CRCs are dependent on the location of this so it needs to stay at $c070.
+  ; If moved, some tests require the low bit to be 0 to avoid state leaks.
+  MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
   Test                    dsb 100+1 ; WLA DX doesn't (?) have a way to make this auto-sized
 ;  CaseCounter             dsb 4
@@ -232,7 +234,7 @@ Start:
   call SMSInitialise
   ld de, Message_Title
   call OutputText
-  
+
   ; Run tests, stop when first word of test data is 0000
   ld hl, Tests
 -:ld a, (hl)
@@ -252,11 +254,11 @@ Start:
 .section "Test table" free
 ; Lookup table of test data
 Tests:
-.if FastTestsFirst == 1
+.if FastTestsFirst == 1/*
 .dw ld162, ld163, ld166, ld167, ld161, ld164, ld16ix, ld8imx, ld8bd, lda, ldd1
 .dw ldd2, ldi1, ldi2, ld165, ld168, ld16im, ld8im, stabd, st8ix3, ld8ix3, rotxy
 .dw srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, incbc, incde, inchl, incix, inciy, incsp
-.dw st8ix1, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, incxh
+.dw st8ix1, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, */.dw incxh
 .dw incxl, incyh, incyl, rotz80, ld8rrx, srz80, incx, rot8080, rldop, cpd1, cpi1
 .dw negop, add16, add16x, add16y, bitz80, daaop, adc16, alu8i, alu8x, alu8rx, alu8r
 .else
@@ -738,54 +740,54 @@ incx:
 
 ; <inc|dec> ixh (3584 cases)
 ; Opcodes:
-; $dd $24 inc ixh
-; $dd $25 dec ixh
-; All values in ihx are tested, with each flag bit tested in isolation.
+; $dd $24 inc ixh (undocumented)
+; $dd $25 dec ixh (undocumented)
+; All values in ixh are tested, with each flag bit tested in isolation.
 incxh: 
   ;         <opcode> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData2 $dd, $24, $b838, $316c, $c6d4, $3e01, $8358, $15b4, $81, $de, $4259
-  TestData2   0, $01,     0, $ff00,     0,     0,     0,     0,   0,   0,     0 ; 9 bits -> 512 permutations
+  TestData2   0, $01,     0,     0, $ff00,     0,     0,     0,   0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, $d7,   0,     0 ; 6 bits ->   7 permutations
-  CRCs $6f463662 $6f463662 
+  CRCs $cfc8b622 $cfc8b622 
   MessageString "<inc|dec> ixh................"
 
 ; <inc|dec> ixl (3584 cases)
 ; Opcodes:
-; $dd $2c inc ixl
-; $dd $2d dec ixl
+; $dd $2c inc ixl (undocumented)
+; $dd $2d dec ixl (undocumented)
 ; All values in ixl are tested, with each flag bit tested in isolation.
 incxl:
   ;         <opcode> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData2 $dd, $2c, $4d14, $7460, $76d4, $06e7, $32a2, $213c, $d6, $d7, $99a5
-  TestData2   0, $01,     0, $00ff,     0,     0,     0,     0,   0,   0,     0 ; 9 bits -> 512 permutations
+  TestData2   0, $01,     0,     0, $00ff,     0,     0,     0,   0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, $d7,   0,     0 ; 6 bits ->   7 permutations
-  CRCs $027bef2c $027bef2c 
+  CRCs $bb96e4c1 $bb96e4c1 
   MessageString "<inc|dec> ixl................"
 
 ; <inc|dec> iyh (3584 cases)
 ; Opcodes:
-; $dd $24 inc iyh
-; $dd $25 dec iyh
+; $fd $24 inc iyh (undocumented)
+; $fd $25 dec iyh (undocumented)
 ; All values in iyh are tested, with each flag bit tested in isolation.
 incyh: 
   ;         <opcode> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
-  TestData2 $dd, $24, $2836, $9f6f, $9116, $61b9, $82cb, $e219, $92, $73, $a98c
+  TestData2 $fd, $24, $2836, $9f6f, $9116, $61b9, $82cb, $e219, $92, $73, $a98c
   TestData2   0, $01,     0, $ff00,     0,     0,     0,     0,   0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, $d7,   0,     0 ; 6 bits ->   7 permutations
-  CRCs $2d966cf3 $2d966cf3 
+  CRCs $580724ce $580724ce 
   MessageString "<inc|dec> iyh................"
 
 ; <inc|dec> iyl (3584 cases)
 ; Opcodes:
-; $dd $2c inc iyl
-; $dd $2d dec iyl
+; $fd $2c inc iyl (undocumented)
+; $fd $2d dec iyl (undocumented)
 ; All values in iyl are tested, with each flag bit tested in isolation.
 incyl: 
   ;         <opcode> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
-  TestData2 $dd, $2c, $d7c6, $62d5, $a09e, $7039, $3e7e, $9f12, $90, $d9, $220f
+  TestData2 $fd, $2c, $d7c6, $62d5, $a09e, $7039, $3e7e, $9f12, $90, $d9, $220f
   TestData2   0, $01,     0, $00ff,     0,     0,     0,     0,   0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, $d7,   0,     0 ; 6 bits ->   7 permutations
-  CRCs $fbcbba95 $36c11e75 
+  CRCs $29b50d35 $29b50d35 
   MessageString "<inc|dec> iyl................"
 
 ; ld <bc|de>, (nnnn) (34 cases)
@@ -994,6 +996,7 @@ ld8rr:
 ; ttt = b|c|d|e|i[xy]h|i[xy]l|(i[xy]+o)|a
 ; Index offset parameter is used by some opcodes, so it's left at 0
 ; so it's a nop for the rest
+; Non-offsetting ones are undocumented
 ld8rrx: 
   ;         <--opcode--> <memop>                        <iy>                          <ix>                          <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData3 $dd, $40, 0, $bcc5, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, $2fc2, $98c0, $83, $1f, $3bcd
