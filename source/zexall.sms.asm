@@ -385,7 +385,7 @@ add16x:
   TestData2   0, %00110000,     0,     0, $f821,     0,     0,     0,   0,   0,     0 ;  9 bits -> 512 permutations
   TestData2   0,         0,     0,     0, $ffff,     0, $ffff, $ffff, $d7,   0, $ffff ; 70 bits ->  71 permutations
   CRCs $c359f7a2 $b1df8ec0
-  MessageString "add ix, <bc,de,ix,sp>........"
+  MessageString "add ix, <bc|de|ix|sp>........"
 
 ; add iy, <bc|de|iy|sp> (36352 cases)
 ; Opcode: $fd $00ss1001
@@ -396,7 +396,7 @@ add16y:
   TestData2   0, %00110000,     0, $f821,     0,     0,     0,     0,   0,   0,     0 ;  9 bits -> 512 permutations
   TestData2   0,         0,     0, $ffff,     0,     0, $ffff, $ffff, $d7,   0, $ffff ; 70 bits ->  71 permutations
   CRCs $5fc828e9 $39c8589b
-  MessageString "add iy, <bc,de,iy,sp>........"
+  MessageString "add iy, <bc|de|iy|sp>........"
 
 ; aluop a, nn (196608 cases)
 ; Opcodes:
