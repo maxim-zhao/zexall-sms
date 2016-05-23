@@ -5,7 +5,10 @@
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
 ;
-; 
+; xx-May-2016 (Maxim)
+; + Tidied up source code in various unimportant ways
+; + Documented all tests explicitly, including case counts
+; + Amended several tests which were mistakenly testing the wrong things
 ; 
 ; 13-November-2010: (FluBBa)
 ; + Fixed compilation when UseSDSCDebugConsole is set to 1
@@ -129,7 +132,6 @@ banks 1
   padding                 dsb 4
   MachineStateAfterTest   instanceof MachineState
   ; CRCs are dependent on the location of this so it needs to stay at $c070.
-  ; If moved, some tests require the low bit to be 0 to avoid state leaks.
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
   Test                    dsb 100+1 ; WLA DX doesn't (?) have a way to make this auto-sized
@@ -166,8 +168,9 @@ banks 1
 
 .org $0066
 .section "Pause handler" Force
-  ; Note that the code uses stack operations to save and restore macine state, so there is a chance
-  ; that pausing will corrupt the test state, causing a failure.
+  ; Note that the test code sets the stack to various locations 
+  ; while testing, which may mean that pausing will break the
+  ; program flow. It's therefore best avoided.
   push af
     ld a, (PauseFlag)
     xor 1             ; toggle flag
@@ -254,13 +257,15 @@ Start:
 .section "Test table" free
 ; Lookup table of test data
 Tests:
-.if FastTestsFirst == 1/*
-.dw ld162, ld163, ld166, ld167, ld161, ld164, ld16ix, ld8imx, ld8bd, lda, ldd1
-.dw ldd2, ldi1, ldi2, ld165, ld168, ld16im, ld8im, stabd, st8ix3, ld8ix3, rotxy
-.dw srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, incbc, incde, inchl, incix, inciy, incsp
-.dw st8ix1, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, */.dw incxh
-.dw incxl, incyh, incyl, rotz80, ld8rrx, srz80, incx, rot8080, rldop, cpd1, cpi1
-.dw negop, add16, add16x, add16y, bitz80, daaop, adc16, alu8i, alu8x, alu8rx, alu8r
+.if FastTestsFirst == 1
+.dw ld162, ld163, ld166, ld167, ld8imx, ld161, ld164, ld16ix, ld8bd, lda, ldd1, ldd2
+.dw ldi1, ldi2, ld165, ld168, ld16im, ld8im, stabd, sccf, st8ix3, cplop, ld8ix3
+.dw rotxy, srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, incbc, incde, inchl, incix, inciy
+.dw incsp, st8ix1, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, incxh
+.dw incxl, incyh, incyl, rotz80, ld8rrx, srz80, incx, rot8080, rldop, alu8r_a, cpd1
+.dw cpi1, daaop, negop, alu8i, alu8r_b, alu8r_c, alu8r_d, alu8r_e, alu8r_h, alu8r_hl
+.dw alu8r_l, alu8rx_ixh, alu8rx_ixl, alu8rx_iyh, alu8rx_iyl, add16, add16x, add16y
+.dw bitz80, adc16, alu8x
 .else
 .dw adc16, add16, add16x, add16y, alu8i, alu8r, alu8rx, alu8x, bitx, bitz80, cpd1
 .dw cpi1, daaop, inca, incb, incc, incbc, incd, incde, ince, inch, inchl, incix
@@ -354,7 +359,8 @@ Tests:
 .endm
 
 ; <adc|sbc> hl, <bc|de|hl|sp> (72704 cases)
-; Opcode: $ed %01sso010
+; Opcode:
+; $ed %01sso010
 ; o = 0 for sbc, 1 for adc
 ; ss = bc|de|hl|sp
 adc16:
@@ -366,7 +372,8 @@ adc16:
   MessageString "<adc|sbc> hl, <bc|de|hl|sp>.."
 
 ; add hl, <bc|de|hl|sp> (36352 cases)
-; Opcode: $00ss1001
+; Opcode:
+; $00ss1001
 ; ss = bc|de|hl|sp
 add16:
   ;        <-opcode -> <memop> <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -377,7 +384,8 @@ add16:
   MessageString "add hl, <bc|de|hl|sp>........"
 
 ; add ix, <bc|de|ix|sp> (36352 cases)
-; Opcode: $dd $00ss1001
+; Opcode:
+; $dd $00ss1001
 ; ss = bc|de|hl|sp
 add16x:
   ;        <-- opcode ---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -388,7 +396,8 @@ add16x:
   MessageString "add ix, <bc|de|ix|sp>........"
 
 ; add iy, <bc|de|iy|sp> (36352 cases)
-; Opcode: $fd $00ss1001
+; Opcode:
+; $fd $00ss1001
 ; ss = bc|de|hl|sp
 add16y:
   ;        <-- opcode ---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -398,7 +407,7 @@ add16y:
   CRCs $5fc828e9 $39c8589b
   MessageString "add iy, <bc|de|iy|sp>........"
 
-; aluop a, nn (196608 cases)
+; aluop a, nn (30720 cases)
 ; Opcodes:
 ; %11[000]110 $nn add a, n
 ; %11[001]110 $nn adc a, n
@@ -411,12 +420,12 @@ add16y:
 alu8i:
   ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData2 %11000110,   0, $9140, $7e3c, $7a67, $df6d, $5b61, $0b29, $10, $66, $85b2
-  TestData2         0, $ff,     0,     0,     0,     0,     0,     0, $d7,   0,     0  ; 14 bits -> 16384 permutations
-  TestData2 %00111000,   0,     0,     0,     0,     0,     0,     0,   0, $ff,     0  ; 11 bits ->    12 permutations
+  TestData2 %00111000,   0,     0,     0,     0,     0,     0,     0,   0, $ff,     0  ; 11 bits -> 2048 permutations
+  TestData2         0, $ff,     0,     0,     0,     0,     0,     0, $d7,   0,     0  ; 14 bits ->   15 permutations
   CRCs $48799360 $51c19c2e
   MessageString "aluop a, nn.................."
 
-; aluop a, <b|c|d|e|h|l|(hl)|a> (884736 cases)
+; aluop a, <b|c|d|e|h|l|(hl)|a> (229376 cases)
 ; Opcodes:
 ; %10[000]sss add a, sss
 ; %10[001]sss adc a, sss
@@ -427,15 +436,65 @@ alu8i:
 ; %10[110]sss or sss
 ; %10[111]sss cp sss
 ; sss = b|c|d|e|h|l|(hl)|a
-alu8r:
+; We split this into 8 tests to speed things up...
+alu8r_b: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData1 %10000000, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
-  TestData1 %00111111,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 14 bits -> 16384 permutations
-  TestData1         0, $ffff,     0,     0,                            0, $ffff, $ffff, $d7,   0,     0 ; 11 bits ->    11 permutations
-  CRCs $5ddf949b $1ec10a46
-  MessageString "aluop a,<b|c|d|e|h|l|(hl)|a>."
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                            0,     0, $ff00, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $7f650a22 $deadbeef
+  MessageString "aluop a, b..................."
+alu8r_c: ; (30720 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000001, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                            0,     0, $00ff, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $55ddfdc2 $deadbeef
+  MessageString "aluop a, c..................."
+alu8r_d: ; (30720 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000010, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                            0, $ff00,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $b7145360 $deadbeef
+  MessageString "aluop a, d..................."
+alu8r_e: ; (30720 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000011, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                            0, $00ff,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $babc2329 $deadbeef
+  MessageString "aluop a, e..................."
+alu8r_h: ; (30720 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000100, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                        $ff00,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $9f2277c2 $deadbeef
+  MessageString "aluop a, h..................."
+alu8r_l: ; (30720 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000101, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                        $00ff,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $f72e37a6 $deadbeef
+  MessageString "aluop a, l..................."
+alu8r_hl: ; (30720 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000110, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0, $00ff,     0,     0,                            0,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $b2fe080d $deadbeef
+  MessageString "aluop a, (hl)................"
+alu8r_a: ; (14336 cases)
+  ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 %10000111, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666, $d0, $3b, $adbb
+  TestData1 %00111000,     0,     0,     0,                            0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData1         0,     0,     0,     0,                            0,     0,     0, $d7,   0,     0 ;  6 bits ->    7 permutations
+  CRCs $b51a3dca $deadbeef
+  MessageString "aluop a, a..................."
 
-; aluop a, <ixh|ixl|iyh|iyl> (385024 cases)
+; aluop a, <ixh|ixl|iyh|iyl> (122880 cases)
 ; Opcodes:
 ; <$dd|$fd> %10[000]10[x] add a, i[xy][hl]
 ; <$dd|$fd> %10[001]10[x] adc a, i[xy][hl]
@@ -445,25 +504,46 @@ alu8r:
 ; <$dd|$fd> %10[101]10[x] xor i[xy][hl]
 ; <$dd|$fd> %10[110]10[x] or i[xy][hl]
 ; <$dd|$fd> %10[111]10[x] cp i[xy][hl]
-alu8rx:
+alu8rx_ixh: ; (30720 cases)
   ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData2 $dd, %10000100, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
-  TestData2 $20, %00111001,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 13 bits -> 8192 permutations
-  TestData2   0,         0, $00ff,     0,     0,     0, $ffff, $ffff, $d7,   0,     0 ; 46 bits ->   47 permutations
-  CRCs $a4026d5a $a886cc44   ; ^^------------------------^^^^---^^^^- why bother? Why not cycle bits in iy/ix?
-  MessageString "aluop a, <ixh|ixl|iyh|iyl>..."
+  TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData2   0,         0,     0,     0, $ff00,     0,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $371ff823 $deadbeef
+  MessageString "aluop a, ixh................."
+alu8rx_ixl: ; (30720 cases)
+  ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData2 $dd, %10000101, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
+  TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData2   0,         0,     0,     0, $00ff,     0,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $7b057fec $deadbeef
+  MessageString "aluop a, ixl................."
+alu8rx_iyh: ; (30720 cases)
+  ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData2 $fd, %10000100, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
+  TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData2   0,         0,     0, $ff00,     0,     0,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $9ee7f6c4 $deadbeef
+  MessageString "aluop a, iyh................."
+alu8rx_iyl: ; (30720 cases)
+  ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData2 $fd, %10000101, $d6f7, $c76e, $accf, $2847, $22dd, $c035, $c5, $38, $234b
+  TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 11 bits -> 2048 permutations
+  TestData2   0,         0,     0, $00ff,     0,     0,     0,     0, $d7,   0,     0 ; 14 bits ->   15 permutations
+  CRCs $27ec13a6 $deadbeef
+  MessageString "aluop a, iyl................."
 
 ; aluop a, (<ix|iy>+1) (245760 cases)
 ; Opcodes:
-; <$dd|$fd> %10[000]110 +1 add a, (i[xy]+1
-; <$dd|$fd> %10[001]110 +1 adc a, (i[xy]+1
-; <$dd|$fd> %10[010]110 +1 sub i[xy][hl]
-; <$dd|$fd> %10[011]110 +1 sbc i[xy][hl]
-; <$dd|$fd> %10[100]110 +1 and i[xy][hl]
-; <$dd|$fd> %10[101]110 +1 xor i[xy][hl]
-; <$dd|$fd> %10[110]110 +1 or i[xy][hl]
-; <$dd|$fd> %10[111]110 +1 cp i[xy][hl]
-; ix and iy point at either byte of memop
+; <$dd|$fd> %10[000]110 $oo add a, (i[xy]+o)
+; <$dd|$fd> %10[001]110 $oo adc a, (i[xy]+o)
+; <$dd|$fd> %10[010]110 $oo sub (i[xy]+o)
+; <$dd|$fd> %10[011]110 $oo sbc (i[xy]+o)
+; <$dd|$fd> %10[100]110 $oo and (i[xy]+o)
+; <$dd|$fd> %10[101]110 $oo xor (i[xy]+o)
+; <$dd|$fd> %10[110]110 $oo or (i[xy]+o)
+; <$dd|$fd> %10[111]110 $oo cp (i[xy]+o)
+; ix and iy point at either memop or memop ^ 1
 ; but the test only flips bits in the low byte
 alu8x:
   ;         <-----opcode-----> <memop>                         <iy>                          <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -477,20 +557,19 @@ alu8x:
 ; Opcode:
 ; <$dd|$fd> $cb $oo %01nnn110
 ; ix and iy point to one byte before memop, and we cycle the bits in the following byte
-; broken? TODO: compare
 bitx:
-  ;        <-------opcode-------> <memop>                           <iy>                            <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
-  TestData $dd, $cb, 1, %01000110, $2075, MachineStateBeforeTest.memop-1, MachineStateBeforeTest.memop-1, $3cfc, $a79a, $3d74, $51, $27, $ca14
-  TestData $20,   0, 0, %00111000,     0,                              0,                              0,     0,     0,     0, $53,   0,     0 ; 8 bits -> 256 permutations
-  TestData   0,   0, 0,         0, $00ff,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 8 bits ->   9 permutations
+  ;        <--------opcode-------> <memop>                           <iy>                            <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData $dd, $cb, +1, %01000110, $2075, MachineStateBeforeTest.memop-1, MachineStateBeforeTest.memop-1, $3cfc, $a79a, $3d74, $51, $27, $ca14
+  TestData $20,   0,  0, %00111000,     0,                              0,                              0,     0,     0,     0, $53,   0,     0 ; 8 bits -> 256 permutations
+  TestData   0,   0,  0,         0, $00ff,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 8 bits ->   9 permutations
   CRCs $55c9ea76 $55c9ea76
   MessageString "bit n, (<ix|iy>+1)..........."
 
 ; bit n, <b|c|d|e|h|l|(hl)|a> (50176 cases)
 ; Opcode:
-; $cb %010nnnss
+; $cb %01nnnsss
 ; nnn = bit number
-; ss = b|c|d|e|h|l|(hl)|a
+; sss = b|c|d|e|h|l|(hl)|a
 bitz80:
   ;         <---opcode---> <memop>  <iy>   <ix>                          <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData2 $cb, %01000000, $3ef1, $9dfc, $7acc, MachineStateBeforeTest.memop, $be61, $7a86, $50, $24, $1998
@@ -529,21 +608,39 @@ cpi1:
   CRCs $74baf310 $f52c5c23
   MessageString "cpi<r>......................."
 
-; <daa|cpl|scf|ccf> (65536 cases)
+; <scf|ccf> (128 cases)
 ; Opcodes:
-; $27 daa
-; $2f cpl
 ; $37 scf
 ; $3f ccf
-; Test coverage is a bit weird: daa depends on af, cpl only on a, scf/ccf only on carry bit.
-; But the count is pretty low so who cares?
+sccf:
+  ;     <opcode> <memop> <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 $37, $2141, $09fa, $1d60, $a559, $8d5b, $9079, $04, $8e, $299d
+  TestData1 $08,     0,     0,     0,     0,     0,     0, $d7,   0,     0 ; 7 bits -> 128 permutations
+  TestData1   0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ; 0 bits ->   1 permutation
+  CRCs $70b745fb $70b745fb
+  MessageString "<scf|ccf>...................."
+
+; cpl (256 cases)
+; Opcode:
+; $2f
+cplop:
+  ;     <opcode> <memop> <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData1 $2f, $2141, $09fa, $1d60, $a559, $8d5b, $9079, $04, $8e, $299d
+  TestData1   0,     0,     0,     0,     0,     0,     0,   0, $ff,     0 ; 8 bits -> 256 permutations
+  TestData1   0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ; 0 bits ->   1 permutation
+  CRCs $63ae5a13 $63ae5a13
+  MessageString "cpl.........................."
+
+; daa (16384 cases)
+; Opcode:
+; $27
 daaop:
   ;     <opcode> <memop> <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData1 $27, $2141, $09fa, $1d60, $a559, $8d5b, $9079, $04, $8e, $299d
-  TestData1 $18,     0,     0,     0,     0,     0,     0, $d7, $ff,     0 ; 16 bits -> 65536 permutations
+  TestData1 $18,     0,     0,     0,     0,     0,     0, $d7, $ff,     0 ; 14 bits -> 16384 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->     1 permutation
   CRCs $9b4ba675 $6d2dd213
-  MessageString "<daa|cpl|scf|ccf>............"
+  MessageString "daa.........................."
 
 ; <inc|dec> a (3584 cases)
 ; Opcodes:
@@ -794,7 +891,7 @@ incyl:
 ; Opcodes:
 ; $ed $4b $nnnn ld bc, (nnnn)
 ; $ed $5b $nnnn ld hl, (nnnn)
-; TODO: could exercise undocumented $ed $6b ld hl, (nnnn)
+; TODO: could exercise undocumented $ed $6b ld hl, (nnnn), it's skipped because it's undocumented and a duplicate (of $2a)
 ld161: 
   ;            <-------------- opcode --------------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData4_16 $ed, $4b, MachineStateBeforeTest.memop, $f9a8, $f559, $93a4, $f5ed, $6f96, $d968, $86, $e6, $4bd8
@@ -804,7 +901,8 @@ ld161:
   MessageString "ld <bc|de>, (nnnn)..........."
 
 ; ld hl, (nnnn) (17 cases)
-; Opcode: $2a $nnnn
+; Opcode:
+; $2a $nnnn
 ld162: 
   ;            <------------ opcode -----------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData3_16 $2a, MachineStateBeforeTest.memop, $9863, $7830, $2077, $b1fe, $b9fa, $abb8, $04, $06, $6015
@@ -814,7 +912,8 @@ ld162:
   MessageString "ld hl, (nnnn)................"
 
 ; ld sp, (nnnn) (17 cases)
-; Opcode: $ed $7b $nnnn
+; Opcode:
+; $ed $7b $nnnn
 ld163: 
   ;            <-------------- opcode --------------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData4_16 $ed, $7b, MachineStateBeforeTest.memop, $8dfc, $57d7, $2161, $ca18, $c185, $27da, $83, $1e, $f460
@@ -824,7 +923,8 @@ ld163:
   MessageString "ld sp, (nnnn)................"
 
 ; ld <ix|iy>, (nnnn) (34 cases)
-; Opcode: <$dd|$fd> $2a $nnnn
+; Opcode:
+; <$dd|$fd> $2a $nnnn
 ld164: 
   ;            <-------------- opcode --------------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData4_16 $dd, $2a, MachineStateBeforeTest.memop, $ded7, $a6fa, $f780, $244c, $87de, $bcc2, $16, $63, $4c96
@@ -846,7 +946,8 @@ ld165:
   MessageString "ld (nnnn), <bc|de>..........."
 
 ; ld (nnnn), hl (17 cases)
-; Opcode: $22 $nnnn
+; Opcode:
+; $22 $nnnn
 ld166: 
   ;            <------------ opcode -----------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData3_16 $22, MachineStateBeforeTest.memop, $d003, $7772, $7f53, $3f72, $64ea, $e180, $10, $2d, $35e9
@@ -856,7 +957,8 @@ ld166:
   MessageString "ld (nnnn), hl................"
 
 ; ld (nnnn), sp (17 cases)
-; Opcode: $ed $73 $nnnn
+; Opcode:
+; $ed $73 $nnnn
 ld167: 
   ;            <-------------- opcode --------------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData4_16 $ed, $73, MachineStateBeforeTest.memop, $c0dc, $d1d6, $ed5a, $f356, $afda, $6ca7, $44, $9f, $3f0a
@@ -866,7 +968,8 @@ ld167:
   MessageString "ld (nnnn), sp................"
 
 ; ld (nnnn), <ix|iy> (66 cases)
-; Opcode: <$dd|$fd> $22 $nnnn
+; Opcode:
+; <$dd|$fd> $22 $nnnn
 ld168: 
   ;            <-------------- opcode --------------> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData4_16 $dd, $22, MachineStateBeforeTest.memop, $6cc3, $0d91, $6900, $8ef8, $e3d6, $c3f7, $c6, $d9, $c2df
@@ -876,7 +979,8 @@ ld168:
   MessageString "ld (nnnn), <ix|iy>..........."
 
 ; ld <bc|de|hl|sp>, nnnn (68 cases)
-; Opcode: %00ss0001 $nnnn ld ss, nnnn
+; Opcode:
+; %00ss0001 $nnnn ld ss, nnnn
 ; ss = bc|de|hl|sp
 ld16im: 
   ;            <--- opcode ---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -887,7 +991,8 @@ ld16im:
   MessageString "ld <bc|de|hl|sp>, nnnn......."
 
 ; ld <ix|iy>, nnnn (34 cases)
-; Opcode: <$dd|$fd> $21 $nnnn
+; Opcode:
+; <$dd|$fd> $21 $nnnn
 ld16ix: 
   ;            <--- opcode --> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData4_16 $dd, $21,     0, $87e8, $2006, $bd12, $b69b, $7253, $a1e5, $51, $13, $f1bd
@@ -909,7 +1014,8 @@ ld8bd:
   MessageString "ld a, <(bc)|(de)>............"
 
 ; ld <b|c|d|e|h|l|(hl)|a>, nn (72 cases)
-; Opcode: %00sss110 $nn
+; Opcode:
+; %00sss110 $nn
 ; sss = b|c|d|e|h|l|(hl)|a
 ld8im:
   ;         <opcode> <memop>  <iy>   <ix>                          <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -919,19 +1025,20 @@ ld8im:
   CRCs $df535f2a $df535f2a
   MessageString "ld <b|c|d|e|h|l|(hl)|a>, nn.."
 
-; ld (<ix|iy>+1), nn (34 cases)
-; Opcode: <$dd|$fd> $36 $oo $nn
-; TODO: remove cases changing a
+; ld (<ix|iy>+1), nn (18 cases)
+; Opcode:
+; <$dd|$fd> $36 $oo $nn
 ld8imx: 
   ;        <----opcode----> <memop>                           <iy>                            <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData $dd, $36, 1, $00, $1b45, MachineStateBeforeTest.memop-1, MachineStateBeforeTest.memop-1, $d5c1, $61c7, $bdc4, $c0, $85, $cd16
-  TestData $20,   0, 0,   0,     0,                              0,                              0,     0,     0,     0,   0,   0,     0 ;  1 bit  ->  2 permutations
-  TestData   0,   0, 0, $ff,     0,                              0,                              0,     0,     0,     0,   0, $ff,     0 ; 16 bits -> 17 permutations
-  CRCs $0b6fd95c $0b6fd95c 
+  TestData $20,   0, 0,   0,     0,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 1 bit  -> 2 permutations
+  TestData   0,   0, 0, $ff,     0,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 8 bits -> 9 permutations
+  CRCs $728e38cf $728e38cf 
   MessageString "ld (<ix|iy>+1), nn..........."
 
 ; ld <b|c|d|e>, (<ix|iy>+1) (1088 cases)
-; Opcode: <$dd|$fd> %010ss110 $oo
+; Opcode:
+; <$dd|$fd> %010ss110 $oo
 ; ss = b|c|d|e
 ; Tests offsets 0 and 1 and also moves ix and iy on by 1 so it reads from iyl sometimes
 ld8ix1: 
@@ -943,19 +1050,21 @@ ld8ix1:
   MessageString "ld <b|c|d|e>, (<ix|iy>+1)...."
 
 ; ld <h|l>, (<ix|iy>+1) (544 cases)
-; Opcode: <$dd|$fd> %011s110 $oo
+; Opcode:
+; <$dd|$fd> %011s110 $oo
 ; s = h|l
 ; Tests offsets 0 and 1 and also moves ix and iy on by 1 so it reads from iyl sometimes
 ld8ix2: 
-  ;         <--opcode--> <memop>                        <iy>                          <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
-  TestData3 $dd, $66, 0, $84e0, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, $9c52, $a799, $49b6, $93, $00, $eead
-  TestData3 $20, $08, 1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  5 bits -> 32 permutations
-  TestData3   0,   0, 0, $ffff,                            0,                            0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
+  ;         <-----opcode-----> <memop>                        <iy>                          <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData3 $dd, %01100110, 0, $84e0, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, $9c52, $a799, $49b6, $93, $00, $eead
+  TestData3 $20, %00001000, 1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  5 bits -> 32 permutations
+  TestData3   0,         0, 0, $ffff,                            0,                            0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $3e094165 $3e094165
   MessageString "ld <h|l>, (<ix|iy>+1)........"
 
 ; ld a, (<ix|iy>+1) (272 cases)
-; Opcode: <$dd|$fd> $7e $oo
+; Opcode:
+; <$dd|$fd> $7e $oo
 ; Tests offsets 0 and 1 and also moves ix and iy on by 1 so it reads from iyl sometimes
 ld8ix3:
   ;         <--opcode--> <memop>                        <iy>                          <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -978,7 +1087,8 @@ ld8ixy:
   MessageString "ld <ixh|ixl|iyh|iyl>, nn....."
 
 ; ld <b|c|d|e|h|l|a>, <b|c|d|e|h|l|a> (3520 cases)
-; Opcode: %01sssttt ld s, t
+; Opcode:
+; %01sssttt ld s, t
 ; sss = b|c|d|e|h|l|(hl)|a
 ; ttt = b|c|d|e|h|l|(hl)|a
 ld8rr: 
@@ -995,13 +1105,13 @@ ld8rr:
 ; sss = b|c|d|e|i[xy]h|i[xy]l|(i[xy]+o)|a
 ; ttt = b|c|d|e|i[xy]h|i[xy]l|(i[xy]+o)|a
 ; Index offset parameter is used by some opcodes, so it's left at 0
-; so it's a nop for the rest
-; Non-offsetting ones are undocumented
+; so it's a nop for the rest. These offsetting opcodes are tested
+; elsewhere. The non-offsetting ones are undocumented.
 ld8rrx: 
-  ;         <--opcode--> <memop>                        <iy>                          <ix>                          <hl>   <de>   <bc>  <f>  <a>   <sp>
-  TestData3 $dd, $40, 0, $bcc5, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, $2fc2, $98c0, $83, $1f, $3bcd
-  TestData3 $20, $3f, 0,     0,                            0,                            0,                            0,     0,     0,   0,   0,     0 ;  7 bits -> 128 permutations
-  TestData3   0,   0, 0, $00ff,                            0,                            0,                            0, $ffff, $ffff, $d7, $ff,     0 ; 54 bits ->  55 permutations
+  ;         <-----opcode-----> <memop>                        <iy>                          <ix>                          <hl>   <de>   <bc>  <f>  <a>   <sp>
+  TestData3 $dd, %01000000, 0, $bcc5, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop, $2fc2, $98c0, $83, $1f, $3bcd
+  TestData3 $20, %00111111, 0,     0,                            0,                            0,                            0,     0,     0,   0,   0,     0 ;  7 bits -> 128 permutations
+  TestData3   0,         0, 0, $00ff,                            0,                            0,                            0, $ffff, $ffff, $d7, $ff,     0 ; 54 bits ->  55 permutations
   CRCs $4c9e4b7b $4c9e4b7b 
   MessageString "ld <bcdexya>, <bcdexya>......"
 
@@ -1074,7 +1184,8 @@ ldi2:
   MessageString "ldi<r> (2)..................."
 
 ; neg (16384 cases)
-; Opcode: $ed $44
+; Opcode:
+; $ed $44
 ; Tests all values of a and flags
 negop:
   ;         <opcode> <memop>  <iy>   <ix>   <hl>   <de>   <bc>  <f>  <a>   <sp>
@@ -1143,8 +1254,8 @@ rotxy:
 rotz80:
   ;         <---opcode---> <memop>  <iy>   <ix>                          <hl>   <de>   <bc>  <f>  <a>   <sp>
   TestData2 $cb, %00000000, $cceb, $5d4a, $e007, MachineStateBeforeTest.memop, $1395, $30ee, $43, $78, $3dad
-  TestData2  0,  %00111111,     0,     0,     0,                            0,     0,     0, $80,   0,     0 ;  7 bits -> 128 permutations
-  TestData2  0,          0, $00ff,     0,     0,                            0, $ffff, $ffff, $57, $ff,     0 ; 53 bits ->  54 permutations
+  TestData2   0, %00111111,     0,     0,     0,                            0,     0,     0, $80,   0,     0 ;  7 bits -> 128 permutations
+  TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff, $57, $ff,     0 ; 53 bits ->  54 permutations
   CRCs $ee0c828b $150c42ed 
   MessageString "shf/rot <b|c|d|e|h|l|(hl)|a>."
 
@@ -1174,7 +1285,8 @@ srzx:
   MessageString "<set|res> n, (<ix|iy>+1)....."
 
 ; ld (<ix|iy>+1), <b|c|d|e> (2112 cases)
-; Opcode: <$dd|$fd> %011100ss $oo
+; Opcode:
+; <$dd|$fd> %011100ss $oo
 ; ss = b|c|d|e
 ; i[xy] point to memop or memop ^ 1, offsets 0 and 1 are exercised
 ; TODO: there is a state leak if MachineStateBeforeTest is odd
@@ -1187,7 +1299,8 @@ st8ix1:
   MessageString "ld (<ix|iy>+1), <b|c|d|e>...."
 
 ; ld (<ix|iy>+1), <h|l> (544 cases)
-; Opcode: <$dd|$fd> %0111010s $oo
+; Opcode:
+; <$dd|$fd> %0111010s $oo
 ; s = h|l
 ; i[xy] point to memop or memop ^ 1, offsets 0 and 1 are exercised
 ; TODO: there is a state leak if MachineStateBeforeTest is odd
@@ -1200,7 +1313,8 @@ st8ix2:
   MessageString "ld (<ix|iy>+1), <h|l>........"
 
 ; ld (<ix|iy>+1), a (144 cases)
-; Opcode: <$dd|$fd> %01110111 $oo
+; Opcode:
+; <$dd|$fd> %01110111 $oo
 ; i[xy] point to memop or memop ^ 1, offsets 0 and 1 are exercised
 ; TODO: there is a state leak if MachineStateBeforeTest is odd
 st8ix3:
@@ -1217,6 +1331,7 @@ st8ix3:
 ; $0a ld a, (bc)
 ; $12 ld (de), a
 ; $1a ld a, (de)
+; TODO: should change $18 to $10 as other opcodes are tested elsewhere
 stabd:
   ;     <opcode> <memop> <iy>   <ix>   <hl>                          <de>                            <bc>  <f>  <a>   <sp>
   TestData1 $02, $0c3b, $b592, $6cff, $959e, MachineStateBeforeTest.memop, MachineStateBeforeTest.memop+1, $c1, $21, $bde7
