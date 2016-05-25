@@ -933,7 +933,7 @@ ld163:
   TestData4_16 $ed, $7b, MachineStateBeforeTest.memop, $8dfc, $57d7, $2161, $ca18, $c185, $27da, $83, $1e, $f460
   TestData4_16   0,   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->  1 permutation
   TestData4_16   0,   0,                            0, $ffff,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
-  CRCs $7acea11c $7acea11b ; TODO: deliberately wrong checksum, 1b is correct
+  CRCs $7acea11b $7acea11b
   MessageString "ld sp, (nnnn)"
 
 ; ld <ix|iy>, (nnnn) (34 cases)
