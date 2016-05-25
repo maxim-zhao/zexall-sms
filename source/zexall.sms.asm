@@ -9,6 +9,9 @@
 ; + Tidied up source code in various unimportant ways
 ; + Documented all tests explicitly, including case counts
 ; + Amended several tests which were mistakenly testing the wrong things
+; + Amended tests to iterate across the undocumented flags in undocumented flags mode
+;   - this affects the test case counts, ordering and comments still reflect the
+;   documented-only case
 ;
 ; 13-November-2010: (FluBBa)
 ; + Fixed compilation when UseSDSCDebugConsole is set to 1
