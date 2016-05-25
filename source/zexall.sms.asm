@@ -1,6 +1,5 @@
-.define FastTestsFirst 1 ; if 1 then tests are ordered with the fastest to complete first
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
+.define DocumentedOnly 0 ; if 0 then undocumented flags get checked too
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
@@ -269,7 +268,6 @@ Start:
 .section "Test table" free
 ; Lookup table of test data
 Tests:
-.if FastTestsFirst == 1
 .dw ld162, ld163, ld166, ld167, ld8imx, ld161, ld164, ld16ix, ld8bd, lda, ldd1, ldd2
 .dw ldi1, ldi2, ld165, ld168, ld16im, ld8im, stabd, sccf, st8ix3, cplop, ld8ix3
 .dw rotxy, srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, incbc, incde, inchl, incix, inciy
@@ -278,15 +276,6 @@ Tests:
 .dw cpi1, daaop, negop, alu8i, alu8r_b, alu8r_c, alu8r_d, alu8r_e, alu8r_h, alu8r_hl
 .dw alu8r_l, alu8rx_ixh, alu8rx_ixl, alu8rx_iyh, alu8rx_iyl, add16, add16x, add16y
 .dw bitz80, adc16, alu8x
-.else
-.dw adc16, add16, add16x, add16y, alu8i, alu8r, alu8rx, alu8x, bitx, bitz80, cpd1
-.dw cpi1, daaop, inca, incb, incc, incbc, incd, incde, ince, inch, inchl, incix
-.dw inciy, incl, incm, incsp, incx, incxh, incxl, incyh, incyl, ld161, ld162
-.dw ld163, ld164, ld165, ld166, ld167, ld168, ld16im, ld16ix, ld8bd, ld8im
-.dw ld8imx, ld8ix1, ld8ix2, ld8ix3, ld8ixy, ld8rr, ld8rrx, lda, ldd1, ldd2, ldi1
-.dw ldi2, negop, rldop, rot8080, rotxy, rotz80, srz80, srzx, st8ix1, st8ix2
-.dw st8ix3, stabd
-.endif
 .dw 0
 .ends
 
