@@ -288,13 +288,6 @@ Tests:
   .fail
 .endif
 .dstruct Test\@ instanceof TestCase data \1, \2, \3, \4, \5, \6, \7, \8, \9, \10, \11, \12, \13
-/*
-.db \1, \2, \3, \4          ; Instruction opcodes
-.dw \5, \6, \7, \8, \9, \10 ; memop, iy, ix, hl, de, bc
-.db \11                     ; flags
-.db \12                     ; a
-.dw \13                     ; sp
-*/
 .endm
 .macro TestData3
 ; 3-byte opcode
@@ -1213,7 +1206,7 @@ rldop:
 ; <rlca|rrca|rla|rra> (7168 cases)
 ; Opcodes:
 ; $07 rlca
-; $0f rrcs
+; $0f rrca
 ; $17 rla
 ; $1f rra
 rot8080:
