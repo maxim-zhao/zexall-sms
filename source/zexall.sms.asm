@@ -1,5 +1,6 @@
 .define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
-.define DocumentedOnly 0 ; if 0 then undocumented flags get checked too
+.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
+.define WriteToSRAM 1 ; if 1 then text is emitted to SRAM as well as other places
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
@@ -93,9 +94,9 @@ slot 3 $c000  ; RAM
 .endme
 
 .rombankmap
-bankstotal 1
+bankstotal 4
 banksize $4000
-banks 1
+banks 4
 .endro
 
 ; Structs
@@ -145,7 +146,8 @@ banks 1
   ; CRCs are dependent on the location of this so it needs to stay at $c070.
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
-  Test                    dsb 100+1 ; WLA DX doesn't (?) have a way to make this auto-sized
+  Test                    dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized
+  SRAMPointer             dw      ; Next address to write to when WriteToSRAM = 1
 ;  CaseCounter             dsb 4
 .ends
 
@@ -246,6 +248,10 @@ hand using a binary search of the test space.
 Start:
   ; Initialisation
   call SMSInitialise
+.if WriteToSRAM == 1
+  call InitialiseSRAM
+.endif
+  
   ld de, Message_Title
   call OutputText
 
@@ -1377,8 +1383,6 @@ StartTest:
       add hl, de
       ex de, hl
       call OutputText  ; show Test name
-;      ld de, Message_Dots
-;      call OutputText  ; show Test name
       call InitialiseCRC
 ;      ld hl, 0
 ;      ld (CaseCounter), hl
@@ -1786,10 +1790,21 @@ OutputText:
   pop bc
   pop af
   ret
+  
+PrintChar:
+.if UseSDSCDebugConsole == 1
+  call PrintChar_SDSC
+.else
+  call PrintChar_SMS
+.endif
+.if WriteToSRAM == 1
+  call PrintChar_SRAM
+.endif
+  ret  
 
 ; Messages
 Message_Title:
-  .asc "Z80 instruction exerciser678901", NEWLINE
+  .asc "Z80 instruction exerciser", NEWLINE
 .if DocumentedOnly == 1
   .asc "Documented flags version", NEWLINE, NEWLINE, STREND
 .else
@@ -2183,13 +2198,13 @@ SMSInitialise:
   ret
 
 
-PrintChar:
-  cp $0d
-  jp nz, sdscprint_out
-  ld a, $0a
-
-sdscprint_out:
-  out (SDSC_OUTPORT_DEBUGCONSOLE_DATA), a
+PrintChar_SDSC:
+  push af
+    cp $0d ; Change \n to \r
+    jr nz, +
+    ld a, $0a
++:  out (SDSC_OUTPORT_DEBUGCONSOLE_DATA), a
+  pop af
   ret
 .ends
 
@@ -2384,7 +2399,8 @@ _chars:
 ; Code to print a character on the screen. Does stuff like handle
 ; line feeds, scrolling, etc.
 
-PrintChar:
+PrintChar_SMS:
+  push af
   push de
     ; If it's a carriage return, skip it.
     cp NEWLINE
@@ -2424,6 +2440,7 @@ _PrintCharDone:
     xor a
     ld (NewlineAdded), a
   pop de
+  pop af
   ret
 
 _NewLine:
@@ -2486,6 +2503,7 @@ noScroll:
     ld a, 0              ; Reset the cursor X position to 0
     ld (CursorX), a
   pop de
+  pop af
   ret
 
 ; Fill the nametable from HL with A bytes.
@@ -2511,6 +2529,48 @@ _WriteBlanks:
   ret
 .ends
 .endif ; UseSDSCDebugConsole == 1
+
+.section "SRAM support" free
+.define SRAM_CONTROL $fffc
+.define SRAM_ENABLED $08
+.define SRAM_START $8000
+.define SRAM_SIZE $4000 ; 16KB - if real SRAM is smaller, we will just double-blank it on startup.
+
+InitialiseSRAM:
+  ; Clue in any mapper detection
+  xor a
+  ld ($ffff), a
+
+  ; Page in SRAM
+	ld a, SRAM_ENABLED
+	ld (SRAM_CONTROL), a
+	
+	; Results address
+	ld hl, SRAM_START
+	ld (SRAMPointer), hl
+	
+	; Clear SRAM to whitespace
+	ld bc, SRAM_SIZE
+-:ld a, ' '
+	ld (hl), a
+  inc hl
+	dec bc
+	ld a, b
+	or c
+	jr nz, -
+  ret
+
+PrintChar_SRAM:
+  push hl
+    ; Write to SRAM
+    ld hl, (SRAMPointer)
+    ld (hl), a
+    inc hl
+    ld (SRAMPointer), hl
+  pop hl
+  ret
+
+.ends
 
 ;==============================================================
 ; SDSC tag and SMS rom header
