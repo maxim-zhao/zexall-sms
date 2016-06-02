@@ -1,5 +1,5 @@
 .define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
-.define WriteToSRAM 1 ; if 1 then text is emitted to SRAM as well as other places
+.define WriteToSRAM 1 ; if 1 then text is emitted to SRAM
 .define WriteToScreen 1 ; if 1 then text is emitted to the screen
 .define WriteToSDSCDebugConsole 1 ; if 1 then text is emitted to the SDSC Debug Console
 
