@@ -169,8 +169,6 @@ banks 4
 ;                 ||`------ Undocumented
 ;                 |`------- Zero
 ;                 `-------- Sign
-; TODO: many test cases permute the flags, we should use this for them
-; (but it will affect the test counts and CRCs)
 
 .bank 0 Slot 0
 
