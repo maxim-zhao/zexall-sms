@@ -1,17 +1,21 @@
-.define UseSDSCDebugConsole 0 ; if 1 then output is printed to SDSC Debug console instead of SMS VDP.
 .define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
 .define WriteToSRAM 1 ; if 1 then text is emitted to SRAM as well as other places
+.define WriteToScreen 1 ; if 1 then text is emitted to the screen
+.define WriteToSDSCDebugConsole 1 ; if 1 then text is emitted to the SDSC Debug Console
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
 ;
-; xx-May-2016 (Maxim)
+; 2016 (Maxim)
 ; + Tidied up source code in various unimportant ways
 ; + Documented all tests explicitly, including case counts
 ; + Amended several tests which were mistakenly testing the wrong things
 ; + Amended tests to iterate across the undocumented flags in undocumented flags mode
 ;   - this affects the test case counts, ordering and comments still reflect the
 ;   documented-only case
+; + Added SRAM output option
+; + Removed VBlank timing dependency
+; + All output options may happen at once now
 ;
 ; 13-November-2010: (FluBBa)
 ; + Fixed compilation when UseSDSCDebugConsole is set to 1
@@ -246,15 +250,22 @@ hand using a binary search of the test space.
 
 .section "Start" free
 Start:
-  ; Initialisation
-  call SMSInitialise
+  ; Output initialisation
+.if WriteToSDSCDebugConsole == 1
+  call Initialise_SDSC
+.endif
+.if WriteToScreen == 1
+  call Initialise_Screen
+.endif
 .if WriteToSRAM == 1
   call InitialiseSRAM
 .endif
-  
+
   ld de, Message_Title
   call OutputText
 
+  call Install ; first, install test code into RAM
+  
   ; Run tests, stop when first word of test data is 0000
   ld hl, Tests
 -:ld a, (hl)
@@ -342,8 +353,12 @@ Tests:
   map ' ' to '~' = 32 ; Our font mostly covers 7-bit "ASCII"
 .enda
 .macro MessageString
+  ; Hack: WLA DX has low string length limits
+.if NARGS == 1
   .asc \1, STREND
-  ; No message length checking :P
+.else
+  .asc \1, \2, STREND
+.endif
 .endm
 
 .macro CRC
@@ -1099,7 +1114,7 @@ ld8rr:
   TestData1 %00111111,     0,     0,     0,                            0,     0,     0,        0,   0,     0 ;  6 bits -> 64 permutations
   TestData1         0, $00ff,     0,     0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits -> 55 permutations
   CRCs $5d1e1c64 $1842d84b
-  MessageString "ld <bcdehla>, <bcdehla>"
+  MessageString "ld <b|c|d|e|h|l|(hl)|a>, <b|c|d|e|h|l|(hl)|a>"
 
 ; ld <b|c|d|e|ixy|a>, <b|c|d|e|ixy|a> (7040 cases)
 ; Opcode:
@@ -1115,7 +1130,7 @@ ld8rrx:
   TestData3 $20, %00111111, 0,     0,                            0,                            0,                            0,     0,     0,        0,   0,     0 ;  7 bits -> 128 permutations
   TestData3   0,         0, 0, $00ff,                            0,                            0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits ->  55 permutations
   CRCs $4c9e4b7b $2bbb0252
-  MessageString "ld <bcdexya>, <bcdexya>"
+  MessageString "ld <b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>, " "<b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>"
 
 ; ld a, (nnnn) / ld (nnnn), a (46 cases)
 ; Opcodes:
@@ -1259,7 +1274,7 @@ rotz80:
   TestData2   0, %00111111,     0,     0,     0,                            0,     0,     0, $80,   0,     0 ;  7 bits -> 128 permutations
   TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff, $57, $ff,     0 ; 53 bits ->  54 permutations
   CRCs $ee0c828b $150c42ed
-  MessageString "shf/rot <b|c|d|e|h|l|(hl)|a>"
+  MessageString "<rlc|rrc|rl|rr|sla|sra|sll|srl> <b|c|d|e|h|l|(hl)|a>"
 
 ; <set|res> n, <b|c|d|e|h|l|(hl)|a> (7040 cases)
 ; Opcodes:
@@ -1272,7 +1287,7 @@ srz80:
   TestData2   0, %01111111,     0,     0,     0,                            0,     0,     0,        0,   0,     0 ;  7 bits -> 128 permutations
   TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits ->  55 permutations
   CRCs $90aa19cd $fdacf700
-  MessageString "<set|res> n, <bcdehl(hl)a>"
+  MessageString "<set|res> n, <b|c|d|e|h|l|(hl)|a>"
 
 ; <set|res> n, (<ix|iy>+1) (480 cases)
 ; Opcodes:
@@ -1347,7 +1362,7 @@ stabd:
 ; Starts test pointed to by (hl)
 StartTest:
   push hl
-.if UseSDSCDebugConsole == 0
+.if WriteToScreen == 1
     ld a, -1
     ld (SlashCounter), a
 .endif
@@ -1383,6 +1398,8 @@ StartTest:
       add hl, de
       ex de, hl
       call OutputText  ; show Test name
+      ld a, ' '
+      call PrintChar
       call InitialiseCRC
 ;      ld hl, 0
 ;      ld (CaseCounter), hl
@@ -1400,9 +1417,9 @@ TestLoop:
       ld a, (Test+OffsetOfInstructionUnderTest+1)
       cp HALT_OPCODE
    +: call nz, Test    ; execute the test instruction
-.if UseSDSCDebugConsole == 0
+.if WriteToScreen == 1
       call UpdateProgressIndicator
-.endif ; UseSDSCDebugConsole == 0
+.endif
   ++: call count      ; increment the counter
       call nz, shift  ; shift the scan bit
     pop hl  ; pointer to test case
@@ -1776,9 +1793,6 @@ OutputText:
   push bc
   push de
   push hl
-.if UseSDSCDebugConsole == 0
-    call WaitForVBlank
-.endif
 -:  ld a, (de)
     cp STREND
     jr z, +
@@ -1792,9 +1806,10 @@ OutputText:
   ret
   
 PrintChar:
-.if UseSDSCDebugConsole == 1
+.if WriteToSDSCDebugConsole == 1
   call PrintChar_SDSC
-.else
+.endif
+.if WriteToScreen == 1
   call PrintChar_SMS
 .endif
 .if WriteToSRAM == 1
@@ -1812,10 +1827,8 @@ Message_Title:
 .endif
 Message_Done:
   .asc "Tests complete", STREND
-Message_Dots:
-  .asc NEWLINE, STREND
 Message_Pass:
-  .asc " OK", NEWLINE, STREND
+  .asc "OK", NEWLINE, STREND
 Message_ActualCRC:
   .asc NEWLINE, " CRC ", STREND
 Message_ExpectedCRC:
@@ -2173,14 +2186,13 @@ Install:
   ret
 .ends
 
-.if UseSDSCDebugConsole == 1
 .section "SDSC console" free
 .include "sdsc.inc"
 
 ; (erq) Re-write SMSInitialise to remove VDP-specific actions, and
 ; (erq) replace with debug console initialization code.
 
-SMSInitialise:
+Initialise_SDSC:
   ; Disable joystick ports.  This enables ports in region $C0 through $FF
   ; allowing Debug Console ports at $FC and $FD to be visible.
   ; WARNING: The following assumes ZEXALL is being run from the SMS
@@ -2192,8 +2204,6 @@ SMSInitialise:
   ; Clear Debug Console screen
   ld a, SDSC_DEBUGCONSOLE_COMMAND_CLEARSCREEN
   out (SDSC_OUTPORT_DEBUGCONSOLE_COMMAND), a
-
-  call Install ; first, install test code into RAM
 
   ret
 
@@ -2207,8 +2217,6 @@ PrintChar_SDSC:
   pop af
   ret
 .ends
-
-.else
 
 .ramsection "SMS drawing routines variables" slot 3
   CursorX      db ; X coordinate of cursor
@@ -2229,7 +2237,7 @@ fontend:
 
 .include "VDP data.inc"
 
-SMSInitialise:
+Initialise_Screen:
   push af
   push bc
   push de
@@ -2240,7 +2248,6 @@ SMSInitialise:
     call LoadFont
     call LoadPalette
     call InitCursor
-    call Install ; first, install test code into RAM
 
     ; Turn screen on
     SET_VDP_REGISTER 1, %11000000
@@ -2321,17 +2328,6 @@ InitCursor:
   ld (ScrollFlag), a
   ret
 
-; Code to wait for start of blanking period
-WaitForVBlank:
-  push af
-    ; Wait for status bit to be set
--:  in a, (VDP_STATUS)
-    and %10000000
-    jr z, -
-  pop af
-  ret
-
-
 ; Code to print slash between executions
 UpdateProgressIndicator:
 /*
@@ -2366,7 +2362,6 @@ UpdateProgressIndicator:
 +:push af
   push bc
   push hl
-;    call WaitForVBlank
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
     out (c), l
@@ -2410,12 +2405,18 @@ PrintChar_SMS:
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
     out (c), l    ; Output lower-order bits
+    push ix
+    pop ix
     out (c), h    ; Output upper bits + control
 
     ld c, VDP_DATA
+    push ix
+    pop ix
     out (c), a     ; Output the character
-    ld b, 0
-    out (c), b
+    push ix
+    pop ix
+    xor a
+    out (c), a
 
     ; Update VRAM pointer
     inc hl
@@ -2528,7 +2529,6 @@ _WriteBlanks:
   pop af
   ret
 .ends
-.endif ; UseSDSCDebugConsole == 1
 
 .section "SRAM support" free
 .define SRAM_CONTROL $fffc
