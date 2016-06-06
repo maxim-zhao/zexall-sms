@@ -85,9 +85,7 @@
 ; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 
-;==============================================================
 ; WLA-DX banking setup
-;==============================================================
 .memorymap
 defaultslot 0
 slotsize $4000
@@ -150,8 +148,7 @@ banks 4
   ; CRCs are dependent on the location of this so it needs to stay at $c070.
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
-  Test                    dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized
-  SRAMPointer             dw      ; Next address to write to when WriteToSRAM = 1
+  Test                    dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized. It only needs 79 bytes, we specify more to avoid breaking if we change the code.
 ;  CaseCounter             dsb 4
 .ends
 
@@ -178,7 +175,6 @@ banks 4
   im 1
   ld sp, $dff0
   jp Start
-
 .ends
 
 .org $0066
@@ -188,10 +184,10 @@ banks 4
   ; program flow. It's therefore best avoided.
   push af
     ld a, (PauseFlag)
-    xor 1             ; toggle flag
+    xor 1 ; toggle flag
     ld (PauseFlag), a
   -:ld a, (PauseFlag)
-    cp 0            ; Loop if non-zero
+    or a  ; Loop if non-zero
     jr nz, -
   pop af
   retn
@@ -248,6 +244,9 @@ hand using a binary search of the test space.
 
 .section "Start" free
 Start:
+  xor a
+  ld (PauseFlag), a
+
   ; Output initialisation
 .if WriteToSDSCDebugConsole == 1
   call Initialise_SDSC
@@ -262,14 +261,18 @@ Start:
   ld de, Message_Title
   call OutputText
 
-  call Install ; first, install test code into RAM
-  
-  ; Run tests, stop when first word of test data is 0000
+  ; Copy test code to RAM
+  ld de, Test
+  ld hl, TestCode
+  ld bc, TestCodeSize
+  ldir
+
+  ; Run tests, stop when first word of test data is 0
   ld hl, Tests
 -:ld a, (hl)
   inc hl
   or (hl)
-  jp z, +  ; finish if 0000
+  jr z, +
   dec hl
   call StartTest   ; otherwise do test
   jp -
@@ -282,6 +285,7 @@ Start:
 
 .section "Test table" free
 ; Lookup table of test data
+; Sorted by case count (for documented flags)
 Tests:
 .dw ld162, ld163, ld166, ld167, ld8imx, ld161, ld164, ld16ix, ld8bd, lda, ldd1, ldd2
 .dw ldi1, ldi2, ld165, ld168, ld16im, ld8im, stabd, sccf, st8ix3, cplop, ld8ix3
@@ -351,7 +355,7 @@ Tests:
   map ' ' to '~' = 32 ; Our font mostly covers 7-bit "ASCII"
 .enda
 .macro MessageString
-  ; Hack: WLA DX has low string length limits
+  ; Hack: WLA DX has low string length limits so we have to split it up
 .if NARGS == 1
   .asc \1, STREND
 .else
@@ -1419,7 +1423,7 @@ TestLoop:
       call UpdateProgressIndicator
 .endif
   ++: call count      ; increment the counter
-      call nz, shift  ; shift the scan bit
+      call nz, shift  ; shift the scan bit if the counter is done
     pop hl  ; pointer to test case
     jr nz, _done  ; done if shift returned NZ
 
@@ -1436,14 +1440,14 @@ TestLoop:
     pop hl  ; pointer to Test case
     push hl
       ld de, Test + OffsetOfInstructionUnderTest
-      call setup  ; setup iut
+      call _SetupTestCase  ; setup iut
       ld b, _sizeof_MachineState
       ld de, MachineStateBeforeTest
-      call setup  ; setup machine state
+      call _SetupTestCase  ; setup machine state
       jp TestLoop
-    
-_done:    
-    ld de, 20+20+20
+
+_done:
+    ld de, _sizeof_TestCase * 3
     add hl, de  ; point to expected crc
     call CompareCRC
     ld de, Message_Pass
@@ -1458,67 +1462,65 @@ _done:
     pop hl  ; get pointer to crc back
     call PrintHex32
     ld de, Message_NewLine
-_Pass:    
+_Pass:
     call OutputText
   pop hl
   inc hl
   inc hl
   ret   ; end of test
 
-; set up a field of the Test case
+; set up a field of the test case
 ; b  = number of bytes
 ; hl = pointer to base case
 ; de = destination
-setup:
-  call subyte
-  inc hl
-  djnz setup
-  ret
-
-subyte:
+_SetupTestCase:
+--:
   push bc
-  push de
-  push hl
-    ld c, (hl)  ; get base byte
-    ld de, 20
-    add hl, de  ; point to incmask
-    ld a, (hl)
-    cp 0
-    jp z, subshf
-    ld b, 8  ; 8 bits
-subclp:
-    rrca
-    push af
-      ld a, 0
-      call c, GetNextCounterBit ; get next counter bit if mask bit was set
-      xor c  ; flip bit if counter bit was set
-      rrca
-      ld c, a
-    pop af
-    djnz subclp
-    ld b, 8
-subshf:
-    ld de, 20
-    add hl, de  ; point to shift mask
-    ld a, (hl)
-    cp 0
-    jp z, +
-    ld b, 8  ; 8 bits
-  -:rrca
-    push af
-      ld a, 0
-      call c, GetNextShifterBit ; get next shifter bit if mask bit was set
-      xor c  ; flip bit if shifter bit was set
-      rrca
-      ld c, a
-    pop af
-    djnz -
-+:pop hl
-  pop de
+    push de
+    push hl
+      ld c, (hl)  ; get base byte
+      ld de, _sizeof_TestCase
+      add hl, de  ; point to counter mask
+      ld a, (hl)
+      or a
+      jp z, + ; Skip if 0
+
+      ld b, 8  ; 8 bits
+-:    rrca
+      push af
+        ld a, 0
+        call c, GetNextCounterBit ; get next counter bit if mask bit was set
+        xor c  ; flip bit if counter bit was set
+        rrca
+        ld c, a
+      pop af
+      djnz -
+
++:    ld de, _sizeof_TestCase
+      add hl, de  ; point to shifter mask
+      ld a, (hl)
+      or a
+      jp z, + ; Skip if 0
+
+      ld b, 8  ; 8 bits
+-:    rrca
+      push af
+        ld a, 0
+        call c, GetNextShifterBit ; get next shifter bit if mask bit was set
+        xor c  ; flip bit if shifter bit was set
+        rrca
+        ld c, a
+      pop af
+      djnz -
+
++:  pop hl
+    pop de
     ld a, c
     ld (de), a  ; mangled byte to destination
     inc de
   pop bc
+  inc hl
+  djnz --
   ret
 
 ; get next counter bit in low bit of a
@@ -1634,13 +1636,13 @@ count:
   push de
   push hl
     ld hl, Counter.Buffer ; 20 byte counter starts here
-    ld de, 20  ; somewhere in here is the stop bit
+    ld de, _sizeof_TestCase  ; somewhere in here is the stop bit
     ex de, hl
     add hl, de
     ex de, hl
   -:inc (hl)
     ld a, (hl)
-    cp 0
+    or a
     jp z, ++ ; overflow to next byte
     ld b, a
     ld a, (de)
@@ -1662,7 +1664,7 @@ shift:
   push de
   push hl
     ld hl, Shifter.Buffer ; 20 byte shift register starts here
-    ld de, 20  ; somewhere in here is the stop bit
+    ld de, _sizeof_TestCase  ; somewhere in here is the stop bit
     ex de, hl
     add hl, de
     ex de, hl
@@ -1802,7 +1804,7 @@ OutputText:
   pop bc
   pop af
   ret
-  
+
 PrintChar:
 .if WriteToSDSCDebugConsole == 1
   call PrintChar_SDSC
@@ -1813,7 +1815,7 @@ PrintChar:
 .if WriteToSRAM == 1
   call PrintChar_SRAM
 .endif
-  ret  
+  ret
 
 ; Messages
 Message_Title:
@@ -2166,24 +2168,6 @@ CRCLookupTable:
   CRC $2d02ef8d
 .ends
 
-.section "SMS-specific stuff"
-; Copies the Test code into modifiable memory.
-; This is because the code is self-modifying.
-Install:
-  push bc
-  push de
-  push hl
-    ld de, Test
-    ld hl, TestCode
-    ld bc, TestCodeSize
-    ldir
-  pop hl
-  pop de
-  pop bc
-
-  ret
-.ends
-
 .section "SDSC console" free
 .include "sdsc.inc"
 
@@ -2216,6 +2200,7 @@ PrintChar_SDSC:
   ret
 .ends
 
+.if WriteToScreen == 1
 .ramsection "SMS drawing routines variables" slot 3
   CursorX      db ; X coordinate of cursor
   VRAMAddress  dw ; VRAM address, pre-masked as a write command
@@ -2224,6 +2209,7 @@ PrintChar_SDSC:
   SlashCounter db ; Counter for rawing slashes animation
   NewlineAdded db ; Flag for handling inserted newlines before newlines
 .ends
+.endif
 
 .section "Font" free
 font:
@@ -2240,8 +2226,6 @@ Initialise_Screen:
   push bc
   push de
   push hl
-    xor a
-    ld (PauseFlag), a
     call SetUpVDP
     call LoadFont
     call LoadPalette
@@ -2378,14 +2362,14 @@ UpdateProgressIndicator:
     ld b, 0
     ld c, VDP_DATA
     out (c), a     ; Output the character
-    push iy
-    pop iy
+;    push ix
+;    pop ix
     out (c), b
   pop hl
   pop bc
   pop af
   ret
-  
+
 _chars:
   .asc "/-\|"
 
@@ -2403,16 +2387,16 @@ PrintChar_SMS:
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
     out (c), l    ; Output lower-order bits
-    push ix
-    pop ix
+;    push ix
+;    pop ix
     out (c), h    ; Output upper bits + control
 
     ld c, VDP_DATA
-    push ix
-    pop ix
+;    push ix
+;    pop ix
     out (c), a     ; Output the character
-    push ix
-    pop ix
+;    push ix
+;    pop ix
     xor a
     out (c), a
 
@@ -2434,7 +2418,7 @@ PrintChar_SMS:
     ld a, 1
     ld (NewlineAdded), a
     jp _NextLine
-    
+
 _PrintCharDone:
     xor a
     ld (NewlineAdded), a
@@ -2448,7 +2432,7 @@ _NewLine:
     or a
     jr z, _NextLine
     jr _PrintCharDone
-  
+
   ; Here we do the job of scrolling the display, computing the
   ; new VRAM address, and all that fun stuff.
 _NextLine:
@@ -2482,7 +2466,7 @@ _NextLine:
     ld a, 32             ; Clear the new line
     call _WriteBlanks
     ld a, (ScrollFlag)      ; Load the Scroll flag and check if it's set.
-    cp 0
+    or a
     jp z, noScroll
     ld a, (Scroll)       ; If it is, increase the Scroll value, and wrap at 28.
     inc a
@@ -2528,6 +2512,12 @@ _WriteBlanks:
   ret
 .ends
 
+.if WriteToSRAM == 1
+.ramsection "SRAM writing variables" slot 3
+  SRAMPointer dw ; Next address to write to
+.ends
+.endif
+
 .section "SRAM support" free
 .define SRAM_CONTROL $fffc
 .define SRAM_ENABLED $08
@@ -2542,11 +2532,11 @@ InitialiseSRAM:
   ; Page in SRAM
 	ld a, SRAM_ENABLED
 	ld (SRAM_CONTROL), a
-	
+
 	; Results address
 	ld hl, SRAM_START
 	ld (SRAMPointer), hl
-	
+
 	; Clear SRAM to whitespace
 	ld bc, SRAM_SIZE
 -:ld a, ' '
@@ -2570,14 +2560,12 @@ PrintChar_SRAM:
 
 .ends
 
-;==============================================================
 ; SDSC tag and SMS rom header
-;==============================================================
-.sdsctag 0.16, "Z80 Intruction Exerciser", SDSCNotes, "FluBBa, Maxim, Eric R. Quinn"
+.sdsctag 0.16, "Z80 Intruction Exerciser", SDSCNotes, "FluBBa, Maxim, Eric R. Quinn, Brett K"
 
 .section "SDSC notes"
 SDSCNotes:
 .db "Based on ZEXALL by Frank Cringle, "
-.db "with credit to J.G.Harston and Brett K"
+.db "with credit to J.G.Harston"
 .db 0
 .ends
