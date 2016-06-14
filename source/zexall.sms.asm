@@ -280,6 +280,12 @@ Start:
 +:ld de, Message_Done
   call OutputText
 
+.if WriteToSDSCDebugConsole == 1
+  ; Suspend emulation
+  ld a, SDSC_DEBUGCONSOLE_COMMAND_SUSPENDEMULATION
+  out (SDSC_OUTPORT_DEBUGCONSOLE_COMMAND), a
+.endif
+  
 -:jp -  ; Infinite loop to stop program
 .ends
 
@@ -1826,7 +1832,7 @@ Message_Title:
   .asc "Undocumented flags version", NEWLINE, NEWLINE, STREND
 .endif
 Message_Done:
-  .asc "Tests complete", STREND
+  .asc "Tests complete", NEWLINE, STREND
 Message_Pass:
   .asc "OK", NEWLINE, STREND
 Message_ActualCRC:
@@ -2179,7 +2185,7 @@ Initialise_SDSC:
   ; allowing Debug Console ports at $FC and $FD to be visible.
   ; WARNING: The following assumes ZEXALL is being run from the SMS
   ; cartridge port.
-  ;
+  ; TODO: detect the port we are in using some code in RAM
   ld a, $af
   out ($3e), a
 
@@ -2277,7 +2283,7 @@ LoadPalette:
 
 ; Load the font
 LoadFont:
-  SET_VRAM_ADDRESS $20 * 32 ; Load space at tile 32 so we can emit ASCII easily
+  SET_VRAM_ADDRESS $20 * ' ' ; Load space at tile 32 so we can emit ASCII easily
   ld hl, font
   ld bc, fontend-font
   ld de, 1
@@ -2347,8 +2353,9 @@ UpdateProgressIndicator:
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
     out (c), l
-    push iy
-    pop iy
+    ; Waste 14 cyctles
+    add a, 0
+    add a, 0
     out (c), h
 
     ; Print the char (but don't move the cursor on)
@@ -2362,8 +2369,9 @@ UpdateProgressIndicator:
     ld b, 0
     ld c, VDP_DATA
     out (c), a     ; Output the character
-;    push ix
-;    pop ix
+    ; Waste 14 cyctles
+    add a, 0
+    add a, 0
     out (c), b
   pop hl
   pop bc
@@ -2387,16 +2395,17 @@ PrintChar_SMS:
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
     out (c), l    ; Output lower-order bits
-;    push ix
-;    pop ix
+    ; waste 14 cycles
+    add a, 0
+    add a, 0
     out (c), h    ; Output upper bits + control
 
     ld c, VDP_DATA
-;    push ix
-;    pop ix
+    ; waste 7 cycles
+    add a, 0
     out (c), a     ; Output the character
-;    push ix
-;    pop ix
+    ; Waste 7 cycles
+    add a, 0
     xor a
     out (c), a
 
@@ -2498,15 +2507,18 @@ _WriteBlanks:
     jr z, +
     ld c, VDP_ADDRESS
     out (c), l ; Output lower-order bits
+    ; Waste 14 cycles
+    add a, 0
+    add a, 0
     out (c), h ; Output upper bits + control
     ; Now, zero out the region
     ; Double so we write n*2 bytes
     add a, a
     ld b, a
     xor a
-    ld c, VDP_DATA
-  -:out (c), a ; Output the character
-    djnz -
+  -:out (VDP_DATA), a ; 11 Output the character
+    dec b             ;  4
+    jr nz, -          ; 12 - 27 cycles between writes
 +:pop bc
   pop af
   ret
