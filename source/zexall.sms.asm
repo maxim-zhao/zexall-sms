@@ -139,11 +139,12 @@ banks 4
 .endst
 
 .ramsection "Variables" slot 3
+  Port3EValue             db
+  padding                 dsb 3
   Counter                 instanceof Permuter
   Shifter                 instanceof Permuter
   StackPointerSaved       dw      ; Saved sp
   CRCValue                dsb 4   ; CRC value
-  padding                 dsb 4
   MachineStateAfterTest   instanceof MachineState
   ; CRCs are dependent on the location of this so it needs to stay at $c070.
   MachineStateBeforeTest  instanceof MachineState
@@ -2183,10 +2184,11 @@ CRCLookupTable:
 Initialise_SDSC:
   ; Disable joystick ports.  This enables ports in region $C0 through $FF
   ; allowing Debug Console ports at $FC and $FD to be visible.
-  ; WARNING: The following assumes ZEXALL is being run from the SMS
-  ; cartridge port.
-  ; TODO: detect the port we are in using some code in RAM
-  ld a, $af
+  ; We need to write to port $3e but we also need to detect what port we are in...
+  call DetectPort3EValue
+  ; Disable the cotroller ports
+  ld a, (Port3EValue)
+  or %00000100
   out ($3e), a
 
   ; Clear Debug Console screen
@@ -2195,6 +2197,57 @@ Initialise_SDSC:
 
   ret
 
+DetectPort3EValue:
+  ; Copy some code to RAM
+  ld hl, DetectPort3EValue_Code
+  ld de, Test ; may as well reuse this
+  ld bc, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
+  ldir
+  jp Test
+
+DetectPort3EValue_Code:
+  ; We write some values to port $3E and check if we find ourself there
+  ld hl, _ValuesToTry
+--:
+  ld a,(hl)
+  or a
+  jr z, _AllFailed
+  out ($3e), a
+  push af
+    ; Check if it matches
+    ld hl, DetectPort3EValue_Code
+    ld de, Test
+    ld b, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code 
+  -:ld a, (de)
+    cp (hl)
+    inc hl
+    inc de
+    jr nz, _Fail
+    djnz -
+  pop af  
+  ; success
+  ld (Port3EValue), a
+  ret
+  
+_Fail:
+  pop af
+  inc hl
+  jr --
+
+_AllFailed:
+  ; Emulator? Let's put a default there
+  ld a, %10101011 ; RAM + IO + cart
+  ld (Port3EValue), a
+  out ($3e), a
+  ret  
+
+_ValuesToTry:
+.db %01101011 ; RAM + IO + expansion
+.db %10101011 ; RAM + IO + cart
+.db %11001011 ; RAM + IO + card
+.db %11100011 ; RAM + IO + BIOS (!)
+.db 0 ; terminator
+DetectPort3EValue_CodeEnd:
 
 PrintChar_SDSC:
   push af
