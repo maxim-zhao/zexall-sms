@@ -27,7 +27,9 @@ licence.
 Maxim
 
 =============================
+
 June 12, 2003
+
 Eric R. Quinn
 
 Added conditional assembly direction enabling test output to go to
@@ -37,5 +39,6 @@ before running ZEXALL.  (Hopefully, the SDSC Debug Console is easier to
 implement than a VDP.)
 
 The binary zexall.sms uses the SMS VDP.
+
 The binary zexall_sdsc.sms uses the SDSC Debug Console.
 
