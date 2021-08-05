@@ -150,7 +150,6 @@ banks 4
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
   TestInRAM               dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized. It only needs 79 bytes, we specify more to avoid breaking if we change the code.
-;  CaseCounter             dsb 4
 .ends
 
 .if DocumentedOnly == 1
@@ -1410,9 +1409,6 @@ StartTest:
       ld a, ' '
       call PrintChar
       call InitialiseCRC
-;      ld hl, 0
-;      ld (CaseCounter), hl
-;      ld (CaseCounter+2), hl
 
 .define HALT_OPCODE $76
 
@@ -2371,22 +2367,6 @@ InitCursor:
 
 ; Code to print slash between executions
 UpdateProgressIndicator:
-/*
-  push hl
-  push bc
-  push af
-    ld hl, CaseCounter+3
-  -:inc (hl)
-    dec hl
-    jp z, -
-
-    ld hl,CaseCounter
-    call PrintHex32
-  pop af
-  pop bc
-  pop hl
-  ret
-*/
   ; Increment the counter
   ld a, (SlashCounter)
   inc a
