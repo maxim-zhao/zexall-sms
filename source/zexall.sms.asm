@@ -149,7 +149,7 @@ banks 4
   ; CRCs are dependent on the location of this so it needs to stay at $c070.
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
-  Test                    dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized. It only needs 79 bytes, we specify more to avoid breaking if we change the code.
+  TestInRAM               dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized. It only needs 79 bytes, we specify more to avoid breaking if we change the code.
 ;  CaseCounter             dsb 4
 .ends
 
@@ -263,7 +263,7 @@ Start:
   call OutputText
 
   ; Copy test code to RAM
-  ld de, Test
+  ld de, TestInRAM
   ld hl, TestCode
   ld bc, TestCodeSize
   ldir
@@ -1395,7 +1395,7 @@ StartTest:
     pop hl
     push hl
       ; hl points to Test.BaseState.Opcode1
-      ld de, Test + OffsetOfInstructionUnderTest  ; self-modify instruction to Test
+      ld de, TestInRAM + OffsetOfInstructionUnderTest  ; self-modify instruction to Test
       ld bc, OpcodeCount
       ldir
       ; hl now points to Test.BaseState.MachineState
@@ -1417,15 +1417,15 @@ StartTest:
 .define HALT_OPCODE $76
 
 TestLoop:
-      ld a, (Test + OffsetOfInstructionUnderTest)
+      ld a, (TestInRAM + OffsetOfInstructionUnderTest)
       cp HALT_OPCODE  ; pragmatically avoid halt intructions
       jr z, ++
       and $df ; check for prefix bytes
       cp $dd
       jp nz, +
-      ld a, (Test+OffsetOfInstructionUnderTest+1)
+      ld a, (TestInRAM + OffsetOfInstructionUnderTest + 1)
       cp HALT_OPCODE
-   +: call nz, Test    ; execute the test instruction
+   +: call nz, TestInRAM ; execute the test instruction
 .if WriteToScreen == 1
       call UpdateProgressIndicator
 .endif
@@ -1446,7 +1446,7 @@ TestLoop:
       ld b, 4  ; bytes in iut field
     pop hl  ; pointer to Test case
     push hl
-      ld de, Test + OffsetOfInstructionUnderTest
+      ld de, TestInRAM + OffsetOfInstructionUnderTest
       call _SetupTestCase  ; setup iut
       ld b, _sizeof_MachineState
       ld de, MachineStateBeforeTest
@@ -1741,7 +1741,7 @@ _InstructionUnderTest:
     ld hl, CRCValue
 -:  ld a, (de)
     inc de
-    call UpdateChecksum  ; accumulate crc of this test case
+    call UpdateCRC  ; accumulate crc of this test case
     djnz -
   pop hl
   pop de
@@ -1867,7 +1867,7 @@ CompareCRC:
 ; 32-bit crc routine
 ; entry: a contains next byte, hl points to crc
 ; exit:  crc updated
-UpdateChecksum:
+UpdateCRC:
   push af
   push bc
   push de
@@ -2200,10 +2200,10 @@ Initialise_SDSC:
 DetectPort3EValue:
   ; Copy some code to RAM
   ld hl, DetectPort3EValue_Code
-  ld de, Test ; may as well reuse this
+  ld de, TestInRAM ; may as well reuse this
   ld bc, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
   ldir
-  jp Test
+  jp TestInRAM
 
 DetectPort3EValue_Code:
   ; We write some values to port $3E and check if we find ourself there
@@ -2216,7 +2216,7 @@ DetectPort3EValue_Code:
   push af
     ; Check if it matches
     ld hl, DetectPort3EValue_Code
-    ld de, Test
+    ld de, TestInRAM
     ld b, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code 
   -:ld a, (de)
     cp (hl)
