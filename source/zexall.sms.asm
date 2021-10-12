@@ -2268,25 +2268,27 @@ Initialise_SDSC:
   ret
 
 DetectPort3EValue:
+.define RAM_LOCATION TestInRAM + $100 ; +$100 to make Emulicious debug sensibly
   ; Copy some code to RAM
   ld hl, DetectPort3EValue_Code
-  ld de, TestInRAM ; may as well reuse this
+  ld de, RAM_LOCATION
   ld bc, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
   ldir
-  jp TestInRAM
+  jp RAM_LOCATION
 
 DetectPort3EValue_Code:
   ; We write some values to port $3E and check if we find ourself there
-  ld hl, _ValuesToTry
+  ld hl, _ValuesToTry - DetectPort3EValue_Code + RAM_LOCATION ; Pointer after loading to RAM
 --:
   ld a, (hl)
   or a
   jr z, _AllFailed
   out ($3e), a
   push af
+  push hl
     ; Check if it matches
     ld hl, DetectPort3EValue_Code
-    ld de, TestInRAM
+    ld de, RAM_LOCATION
     ld b, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
   -:ld a, (de)
     cp (hl)
@@ -2294,12 +2296,14 @@ DetectPort3EValue_Code:
     inc de
     jr nz, _Fail
     djnz -
+  pop hl
   pop af 
   ; success
   ld (Port3EValue), a
   ret
  
 _Fail:
+  pop hl
   pop af
   inc hl
   jr --
@@ -2316,6 +2320,14 @@ _ValuesToTry:
 .db %10101011 ; RAM + IO + cart
 .db %11001011 ; RAM + IO + card
 .db %11100011 ; RAM + IO + BIOS (!)
+;    ||||||``- No effect
+;    |||||`--- I/O
+;    ||||`---- BIOS
+;    |||`----- RAM
+;    ||`------ Card
+;    |`------- Cart
+;    `-------- Expansion
+
 .db 0 ; terminator
 DetectPort3EValue_CodeEnd:
 
