@@ -12,16 +12,19 @@ VDPRegisterInitialisation:
 ;    |`------- Fix top 2 rows during scrolling
 ;    `-------- Fix right 8 columns during scrolling
 .db %10000000,$81
-;    ||||| |`- Zoomed sprites -> 16x16 pixels
-;    ||||| `-- Doubled sprites -> 2 tiles per sprite, 8x16
+;    |||||||`- Zoomed sprites -> 16x16 pixels
+;    ||||||`-- Doubled sprites -> 2 tiles per sprite, 8x16
+;    |||||`--- Always 0 for Mega Drive compatibility
 ;    ||||`---- 30 row/240 line mode
 ;    |||`----- 28 row/224 line mode
 ;    ||`------ VBlank interrupts
 ;    |`------- Enable display
-;    `-------- Must be set (VRAM size bit)
-.db (NameTableAddress>>10)|$01,$82	; (erq) OR data with $01 for 315-5124 compatibility
-.db SpriteTableAddress>>7,$85
-.db SpriteSet<<2,$86
+;    `-------- VRAM size bit - always 1
+.db (NameTableAddress>>10)|%11110001,$82	; Mask bits 0, 4-7 to 1 for compatibility
+.db %11111111,$83 ; Unused, set all bits for compatibility
+.db %11111111,$84 ; Unused, set all bits for compatibility
+.db (SpriteTableAddress>>7)|%10000001,$85 ; Mask bits 0, 7 to 1 for compatibility
+.db (SpriteSet<<2)|%10000011,$86 ; Mask bits 0-1, 7 for compatibility
 .db $0,$87
 ;    `-------- Border palette colour (sprite palette)
 .db $08,$88
@@ -30,7 +33,36 @@ VDPRegisterInitialisation:
 ;    ``------- Vertical scroll
 .db $ff,$8a
 ;    ``------- Line interrupt spacing
-VDPRegisterInitialisationEnd:
+
+VDPRegisterInitialisation_TMS:
+.db %00000000,$80
+;    |||||||`- EXTVID - Enables external video input
+;    ||||||`-- M2 - Select screen mode
+;    ``````--- Unused
+.db %11010000,$81
+;    |||||||`- MAG - Sprites enlarged if set (sprite pixels are 2x2)
+;    ||||||`-- SI - 16x16 sprites if set; 8x8 if reset
+;    |||||`--- Unused
+;    ||||`---- M3 - Select screen mode
+;    |||`----- M1 - Select screen mode
+;    ||`------ GINT - Generate interrupts if set
+;    |`------- BL - Blank screen if reset; just backdrop. Sprite system inactive
+;    `-------- 4/16K - Selects 16kB RAM if set.(must be 1)
+.db (NameTableAddress>>10)|%11110000,$82
+.db 0,$84 ; Patterns start at address 0 like in SMS mode
+.db %11110001,$87
+;    ||||````- BAckground colour (black)
+;    ````----- Text colour (white)
+
+;          0  1  2  3  4  5  6  7  8  9  a
+; Me:     00 c0 fe ff 00 ff fb f1 00 00 ff
+; BASIC:  00 f0 0f ff 03 76 03 13 00 00 ff
+;            |   |     | || || ``- Colours
+;            |   |     | || ``- Sprite indirect, unused
+;            |   |     | ``- Sprite table, unused
+;            |   |     `- Pattern location higher
+;            |   `- Could have name table higher as it's smaller
+;            `- Just no interrupts
 
 Palette:
 .db $00,$30,$0c,$03,$3c,$33,$0f,$16,$19,$06,$35,$21,$0d,$37,$23,$3f

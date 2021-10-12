@@ -1,7 +1,7 @@
-.define DocumentedOnly 1 ; if 0 then undocumented flags get checked too
-.define WriteToSRAM 1 ; if 1 then text is emitted to SRAM
-.define WriteToScreen 1 ; if 1 then text is emitted to the screen
-.define WriteToSDSCDebugConsole 1 ; if 1 then text is emitted to the SDSC Debug Console
+.define DocumentedOnly ; if undefined then undocumented flags get checked too
+.define WriteToSRAM ; if defined then text is emitted to SRAM
+.define WriteToScreen ; if defined then text is emitted to the screen
+.define WriteToSDSCDebugConsole ; if defined then text is emitted to the SDSC Debug Console
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
@@ -95,6 +95,7 @@ slot 2 $8000  ; ROM (not used)
 slot 3 $c000  ; RAM
 .endme
 
+; We produce a 64KB ROM in order to make some emulators enable SRAM. Almost all is unused.
 .rombankmap
 bankstotal 4
 banksize $4000
@@ -149,10 +150,13 @@ banks 4
   ; CRCs are dependent on the location of this so it needs to stay at $c070.
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
+  IsSMSVDP                db
   TestInRAM               dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized. It only needs 79 bytes, we specify more to avoid breaking if we change the code.
+  TMSCopyBuffer           dsb 40
+  ; Total RAM use is <256 bytes
 .ends
 
-.if DocumentedOnly == 1
+.ifdef DocumentedOnly
 .define FlagMask %11010111  ; Mask for flag register
 .else
 .define FlagMask %11111111  ; Mask for flag register
@@ -173,7 +177,7 @@ banks 4
 .section "Boot section" Force
   di
   im 1
-  ld sp, $dff0
+  ld sp, $dff0 ; On a Master System, this is the top of RAM. On an SG-1000 or SC-3000 it will mirror to the top of RAM.
   jp Start
 .ends
 
@@ -248,18 +252,70 @@ Start:
   ld (PauseFlag), a
 
   ; Output initialisation
-.if WriteToSDSCDebugConsole == 1
+.ifdef WriteToSDSCDebugConsole
   call Initialise_SDSC
 .endif
-.if WriteToScreen == 1
+.ifdef WriteToScreen
   call Initialise_Screen
 .endif
-.if WriteToSRAM == 1
+.ifdef WriteToSRAM
   call InitialiseSRAM
 .endif
 
-  ld de, Message_Title
+  ; Print the version
+  ; We format it to the screen...
+  ld ix, $7fe0 ; SDSC header
+  ; First the title
+  ; Get the pointer
+  ld l, (ix+$c)
+  ld h, (ix+$d)
+-:ld a, (hl)
+  or a
+  jr z, + ; It's null-terminated
+  call PrintChar
+  inc hl
+  jr -
++:
+
+  ; Add a space
+  ld a, ' '
+  call PrintChar
+ 
+  ; Then the major version... we assume a single digit
+  ld a, (ix+4)
+  call PrintNibble
+  ld a, '.'
+  call PrintChar
+  ; And the minor... with two digits
+  ld a, (ix+5)
+  call PrintByte
+  ld a, NEWLINE
+  call PrintChar
+ 
+  ld de, Message_TitleInfo
   call OutputText
+  
+.ifdef WriteToSDSCDebugConsole
+  ld de, Message_SDSCMode
+  call OutputText
+.endif
+
+.ifdef WriteToScreen
+  ld de, Message_SMSMode
+  ld a, (IsSMSVDP)
+  or a
+  jr nz, +
+  ld de, Message_TMSMode
++:call OutputText
+.endif
+
+.ifdef WriteToSRAM
+  ld de, Message_SRAMMode
+  call OutputText
+.endif
+
+  ld a, NEWLINE
+  call PrintChar
 
   ; Copy test code to RAM
   ld de, TestInRAM
@@ -280,12 +336,12 @@ Start:
 +:ld de, Message_Done
   call OutputText
 
-.if WriteToSDSCDebugConsole == 1
+.ifdef WriteToSDSCDebugConsole
   ; Suspend emulation
   ld a, SDSC_DEBUGCONSOLE_COMMAND_SUSPENDEMULATION
   out (SDSC_OUTPORT_DEBUGCONSOLE_COMMAND), a
 .endif
-  
+ 
 -:jp -  ; Infinite loop to stop program
 .ends
 
@@ -374,7 +430,7 @@ Tests:
 .endm
 
 .macro CRCs
-.if DocumentedOnly == 1
+.ifdef DocumentedOnly
   CRC \1
 .else
   CRC \2
@@ -1370,7 +1426,7 @@ stabd:
 ; Starts test pointed to by (hl)
 StartTest:
   push hl
-.if WriteToScreen == 1
+.ifdef WriteToScreen
     ld a, -1
     ld (SlashCounter), a
 .endif
@@ -1414,15 +1470,15 @@ StartTest:
 
 TestLoop:
       ld a, (TestInRAM + OffsetOfInstructionUnderTest)
-      cp HALT_OPCODE  ; pragmatically avoid halt intructions
+      cp HALT_OPCODE  ; pragmatically avoid halt instructions
       jr z, ++
       and $df ; check for prefix bytes
       cp $dd
       jp nz, +
       ld a, (TestInRAM + OffsetOfInstructionUnderTest + 1)
       cp HALT_OPCODE
-   +: call nz, TestInRAM ; execute the test instruction
-.if WriteToScreen == 1
+ +:   call nz, TestInRAM ; execute the test instruction
+.ifdef WriteToScreen
       call UpdateProgressIndicator
 .endif
   ++: call count      ; increment the counter
@@ -1566,7 +1622,7 @@ GetNextShifterBit:
     ld hl, (Shifter.Byte)
     inc hl
     ld (Shifter.Byte), hl
-  +:ld a, b
++:  ld a, b
     and c
     pop hl
     pop bc
@@ -1604,7 +1660,7 @@ InitMask:
     and c
     jp z, +
     inc d
-  +:ld a, c
++:  ld a, c
     rlca
     ld c, a
     cp 1
@@ -1760,7 +1816,7 @@ PrintHex32:
     ld b, 4
   -:push bc
       ld a, (hl)
-      call +
+      call PrintByte
       inc hl
     pop bc
     djnz -
@@ -1770,22 +1826,24 @@ PrintHex32:
   ret
 
 ; display byte in a
-+:push af
+PrintByte:
+  push af
     .rept 4
     rrca
     .endr
-    call +
+    call PrintNibble
   pop af
 ; fall through
 
 ; display low nibble in a
+PrintNibble:
 +:push bc
   push hl
     and $0f
     cp 10
     jp c, +
     add a, 'a'-'9'-1
-  +:add a, '0'
++:  add a, '0'
     call PrintChar
   pop hl
   pop bc
@@ -1809,25 +1867,41 @@ OutputText:
   ret
 
 PrintChar:
-.if WriteToSDSCDebugConsole == 1
-  call PrintChar_SDSC
+  push hl
+.ifdef WriteToSDSCDebugConsole
+    call PrintChar_SDSC
 .endif
-.if WriteToScreen == 1
-  call PrintChar_SMS
+.ifdef WriteToScreen
+    call PrintChar_SMS
 .endif
-.if WriteToSRAM == 1
-  call PrintChar_SRAM
+.ifdef WriteToSRAM
+    call PrintChar_SRAM
 .endif
+  pop hl
   ret
 
 ; Messages
-Message_Title:
-  .asc "Z80 instruction exerciser", NEWLINE
-.if DocumentedOnly == 1
-  .asc "Documented flags version", NEWLINE, NEWLINE, STREND
+Message_TitleInfo:
+.ifdef DocumentedOnly
+  .asc "Documented"
 .else
-  .asc "Undocumented flags version", NEWLINE, NEWLINE, STREND
+  .asc "Undocumented"
 .endif
+  .asc " flags version", NEWLINE, 
+  .asc "Outputs:", NEWLINE, STREND
+ 
+Message_SDSCMode:
+  .asc "* SDSC Debug Console", NEWLINE, STREND
+
+Message_SRAMMode:
+  .asc "* SRAM", NEWLINE, STREND
+
+Message_SMSMode:
+  .asc "* SMS Mode 4", NEWLINE, STREND
+
+Message_TMSMode:
+  .asc "* TMS9918 Text Mode", NEWLINE, STREND
+ 
 Message_Done:
   .asc "Tests complete", NEWLINE, STREND
 Message_Pass:
@@ -2205,7 +2279,7 @@ DetectPort3EValue_Code:
   ; We write some values to port $3E and check if we find ourself there
   ld hl, _ValuesToTry
 --:
-  ld a,(hl)
+  ld a, (hl)
   or a
   jr z, _AllFailed
   out ($3e), a
@@ -2213,18 +2287,18 @@ DetectPort3EValue_Code:
     ; Check if it matches
     ld hl, DetectPort3EValue_Code
     ld de, TestInRAM
-    ld b, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code 
+    ld b, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
   -:ld a, (de)
     cp (hl)
     inc hl
     inc de
     jr nz, _Fail
     djnz -
-  pop af  
+  pop af 
   ; success
   ld (Port3EValue), a
   ret
-  
+ 
 _Fail:
   pop af
   inc hl
@@ -2235,7 +2309,7 @@ _AllFailed:
   ld a, %10101011 ; RAM + IO + cart
   ld (Port3EValue), a
   out ($3e), a
-  ret  
+  ret
 
 _ValuesToTry:
 .db %01101011 ; RAM + IO + expansion
@@ -2255,13 +2329,13 @@ PrintChar_SDSC:
   ret
 .ends
 
-.if WriteToScreen == 1
+.ifdef WriteToScreen
 .ramsection "SMS drawing routines variables" slot 3
   CursorX      db ; X coordinate of cursor
   VRAMAddress  dw ; VRAM address, pre-masked as a write command
   Scroll       db ; Current scrolling offset
   ScrollFlag   db ; Zero before we start scrolling, then 1
-  SlashCounter db ; Counter for rawing slashes animation
+  SlashCounter db ; Counter for drawing slashes animation
   NewlineAdded db ; Flag for handling inserted newlines before newlines
 .ends
 .endif
@@ -2269,7 +2343,6 @@ PrintChar_SDSC:
 .section "Font" free
 font:
 .include "BBC Micro font.inc"
-fontend:
 .ends
 
 .section "VDP initialisation" free
@@ -2281,12 +2354,30 @@ Initialise_Screen:
   push bc
   push de
   push hl
+    call DetectSystem
+ 
+    ld a, (IsSMSVDP)
+    or a
+    jp z, _TMS
+_SMS:
     call SetUpVDP
+    call ClearVRAM
     call LoadFont
     call LoadPalette
+    jr +
+   
+_TMS:
+    call SetUpVDP_TMS
+    call ClearVRAM
+    call LoadFont_TMS
+
++:
     call InitCursor
 
     ; Turn screen on
+    ld a, (IsSMSVDP)
+    or a
+    jr z, +
     SET_VDP_REGISTER 1, %11000000
 ;                        ||||| |`- Zoomed sprites -> 16x16 pixels
 ;                        ||||| `-- Doubled sprites -> 2 tiles per sprite, 8x16
@@ -2295,32 +2386,172 @@ Initialise_Screen:
 ;                        ||`------ VBlank interrupts
 ;                        |`------- Enable display
 ;                        `-------- Must be set (VRAM size bit)
-
+    jr ++
++:  SET_VDP_REGISTER 1, %11010000
+;                        |||||||`- MAG - Sprites enlarged if set (sprite pixels are 2x2)
+;                        ||||||`-- SI - 16x16 sprites if set; 8x8 if reset
+;                        |||||`--- Unused
+;                        ||||`---- M3 - Select screen mode
+;                        |||`----- M1 - Select screen mode
+;                        ||`------ GINT - Generate interrupts if set
+;                        |`------- BL - Blank screen if reset; just backdrop. Sprite system inactive
+;                        `-------- 4/16K - Selects 16kB RAM if set.(must be 1)
+++:
   pop hl
   pop de
   pop bc
   pop af
   ret
 
+DetectSystem:
+  ; We set the video to SMS mode with the sprite table at $3f00.
+  ; A TMS9918a will interpret this as mode 0 with the sprite attribute table at $3f80 (and sprite generator table at $1800, although it doesn't matter here).
+  call SetUpVDP
+  call ClearVRAM
+  ; Screen is off so we can write fast...
+  ; We set up the sprite table for five sprites on top of each other (for mode 4)
+  ld hl, $4000 + 32
+  call SetVRAMAddress
+  ld b, 32 ; 32 bytes = 1 tile
+  ld a, $ff
+-:out (VDP_DATA), a
+  djnz -
+  ; ys
+  ld hl, SpriteTableAddress | $4000
+  call SetVRAMAddress
+  xor a ; y = 0
+  ld b, 5
+-:out (VDP_DATA), a
+  djnz -
+  ld a, 208 ; terminator
+  out (VDP_DATA), a
+  ; xns
+  ld hl, SpriteTableAddress | $4000 + 128
+  call SetVRAMAddress
+  ld b, 5
+-:ld a, 208 ; x = 208
+  out (VDP_DATA), a
+  ld a, 1 ; n = 1
+  out (VDP_DATA), a
+  djnz -
+  ; A TMS9918a will see the "xns" as the sprite table start, and thus see a terminator right away, and therefore have no sprites.
+  
+  ; Clear any status bit
+  in a, (VDP_STATUS)
+  ; Next we turn on the screen... without interrupts
+  SET_VDP_REGISTER 1, %11000000
+  ; And wait for a status update
+  ld b, 2
+-:in a, (VDP_STATUS)
+  bit 7, a
+  and %11100000 ; mask off low bits (meaningless on SMS, collision index on TMS)
+  jr z, -
+  ; If we see collision but not overflow then we are in mode 4
+  cp %00100000
+  jr z, _IsMode4
+  ; If we see a frame interrupt then we try again for one frame
+  cp %10000000
+  jr nz, _NotMode4
+  djnz -
+
+_NotMode4:
+  xor a
+  jr +
+_IsMode4:
+  ld a, 1
++:ld (IsSMSVDP), a
+  ; Turn the screen off again
+  SET_VDP_REGISTER 1, %10000000
+  ret
+  
+
+
+/*
+  ; We try to detect an SMS VDP by reading the V counter.
+  ; On an SMS/GG/etc we should see numbers that go up.by 1 most of the time
+  ; On a TMS9918a it is apparently always writing to the PSG (!) so we should "mute" at the end
+  in a, ($7e)
+  ld c, a ; remember last seen value
+  ld d, 10 ; Total line count
+  ld e, 0 ; Count of how many +1 changes we saw
+ 
+@LineLoop:
+  ld b, 10 ; Counter for waiting for the value to change. It should change every 228 cycles which is 4-5 iterations.
+-:in a, ($7e) ; Read new value
+  cp c
+  jr nz, @Changed
+  djnz -
+  ; If we get here, it's not changing
+  jr @Finished
+ 
+@Changed:; Value changed, but how?
+  sub c
+  cp 1
+  jr nz, @NotChangedBy1
+  ; Changed by 1, good
+  inc e ; Increment counter
+  inc c ; Set c to the value in question
+  ; fall through
+@ChangeCheckDone:
+  dec d
+  jr nz, @LineLoop
+@Finished:
+  ; Check how many good values we saw
+  ld a, e
+  ; We expect at most one "jump", but we will threshold at five
+  cp 5
+  ld a, 0
+  jr c, +
+  ld a, 1
++:ld (IsSMSVDP), a
+  or a
+  ret nz
+  ; If 0, we write some data to mute the PSG
+  ld a, $9f
+  out ($7f), a
+  ld a, $bf
+  out ($7f), a
+  ld a, $df
+  out ($7f), a
+  ld a, $ff
+  out ($7f), a
+  ret
+ 
+@NotChangedBy1:
+  ; SAve the value by re-adding c
+  add c
+  ld c, a
+  jr @ChangeCheckDone
+*/
+
+
 ; Set up our VDP for display. Set the correct video mode, but the display is turned off.
 SetUpVDP:
-  ; Set VDP registers
+  ; Set VDP registers (SMS)
   ld hl, VDPRegisterInitialisation
-  ld b, VDPRegisterInitialisationEnd - VDPRegisterInitialisation
-  ld c, VDP_REGISTER
+  ld b, _sizeof_VDPRegisterInitialisation
+-:ld c, VDP_REGISTER
   otir
+  ret
+ 
+SetUpVDP_TMS:
+  ; Set VDP registers (TMS mode)
+  ld hl, VDPRegisterInitialisation_TMS
+  ld b, _sizeof_VDPRegisterInitialisation_TMS
+  jp -
 
-  ; Clear VRAM
+ClearVRAM:
+  ; Clear VRAM (same for both)
   SET_VRAM_ADDRESS 0
-  ld hl, $8000
+  ld hl, 16*1024 ; 16KB VRAM
+  xor a
   ld bc, 1
-  ld a, 0
 -:out (VDP_DATA), a
   sbc hl, bc
   jr nz, -
 
   ret
-
+ 
 ; Install our palette into the VDP
 LoadPalette:
   SET_CRAM_ADDRESS 0
@@ -2334,8 +2565,7 @@ LoadPalette:
 LoadFont:
   SET_VRAM_ADDRESS $20 * ' ' ; Load space at tile 32 so we can emit ASCII easily
   ld hl, font
-  ld bc, fontend-font
-  ld de, 1
+  ld bc, _sizeof_font
 -:ld a, (hl)
   out (VDP_DATA), a
   out (VDP_DATA), a
@@ -2347,6 +2577,34 @@ LoadFont:
   or c
   jr nz, -
   ret
+ 
+LoadFont_TMS:
+  SET_VRAM_ADDRESS 8 * ' '
+  ld hl, font
+  ld bc, _sizeof_font
+-:ld a, (hl)
+  add a, a
+  out (VDP_DATA), a ; 1bpp
+  inc hl
+  dec bc
+  ld a, b
+  or c
+  jr nz, -
+  ret
+
+SetVRAMAddress:
+  ; address in hl
+  push af
+    ld a, l
+    out (VDP_ADDRESS), a
+    ; Delay for timing
+    ; TODO: optimise?
+    add a, 0
+    ld a, h
+    out (VDP_ADDRESS), a
+  pop af
+  ret
+
 .ends
 
 .section "Console emulation" free
@@ -2358,7 +2616,7 @@ LoadFont:
 ; Initialize the cursor variables
 InitCursor:
   ld hl, NAME_TABLE_START
-  ld a, 0
+  xor a
   ld (CursorX), a
   ld (VRAMAddress), hl
   ld (Scroll), a
@@ -2383,13 +2641,8 @@ UpdateProgressIndicator:
 +:push af
   push bc
   push hl
-    ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
-    out (c), l
-    ; Waste 14 cyctles
-    add a, 0
-    add a, 0
-    out (c), h
+    call SetVRAMAddress
 
     ; Print the char (but don't move the cursor on)
     ld hl, _chars
@@ -2427,35 +2680,42 @@ PrintChar_SMS:
     ld b, a       ; save value for later
     ld c, VDP_ADDRESS
     ld hl, (VRAMAddress)
-    out (c), l    ; Output lower-order bits
-    ; waste 14 cycles
-    add a, 0
-    add a, 0
-    out (c), h    ; Output upper bits + control
+    call SetVRAMAddress
 
     ld c, VDP_DATA
     ; waste 7 cycles
     add a, 0
     out (c), a     ; Output the character
-    ; Waste 7 cycles
-    add a, 0
+
+    ld a, (IsSMSVDP)
+    or a
+    jr z, +
+    ; SMS mode: write upper byte
     xor a
     out (c), a
-
-    ; Update VRAM pointer
-    inc hl
-    inc hl
+    inc hl ; and move pointer on an extra byte
++:  inc hl
     ld (VRAMAddress), hl
 
     ; Move cursor forward
-    ld hl,CursorX
+    ld hl, CursorX
     inc (hl)
 
     ; Check if we're at the end of the line
+    ld a, (IsSMSVDP)
+    or a
+    jr z, +
+
     ld a, (CursorX)
     cp 31
     jp nz, _PrintCharDone
-    ; We insert a newline, to make sure scrolling etc works as intended.
+    jr ++
+   
++:  ld a, (CursorX)
+    cp 40
+    jp nz, _PrintCharDone
+
+++: ; We insert a newline, to make sure scrolling etc works as intended.
     ; We then want to suppress any subsequent newline.
     ld a, 1
     ld (NewlineAdded), a
@@ -2474,20 +2734,26 @@ _NewLine:
     or a
     jr z, _NextLine
     jr _PrintCharDone
-
+   
   ; Here we do the job of scrolling the display, computing the
   ; new VRAM address, and all that fun stuff.
 _NextLine:
     ld hl, (VRAMAddress)     ; Increase the VRAM position
-    ; Get the cursor position and find out how far it was to the
-    ; end of the line.
+    ; Get the cursor position and find out how far it was to the end of the line.
     ld a, (CursorX)
     ld b, a
+   
+    ; Here we fork for TMS vs. SMS   
+    ld a, (IsSMSVDP)
+    or a
+    jr z, _TMSNextLine
+
+    ; SMS
     ld a, 32
     sub b
+    add a, a ; two bytes per tile
     call _WriteBlanks   ; Fill the rest of the line
-    sla a               ; Now, double this and add it to HL. This is the new address.
-    ld c, a
+    ld c, a             ; Now, add this to HL. This is the new address.
     ld b, 0
     add hl, bc          ; Now create new address.
     ccf
@@ -2497,26 +2763,25 @@ _NextLine:
       jp c, +
       ld a, 1           ; If we are, set the scroll flag on... we scroll from now on.
       ld (ScrollFlag), a
-  +:pop hl
++:  pop hl
     push hl
       ld bc, NAME_TABLE_END ; Next, check if we're at the end of VRAM
       sbc hl, bc
     pop hl
     jp c, +
     ld hl, NAME_TABLE_START ; If we are, return to the top of VRAM.
-  +:ld (VRAMAddress), hl ; Now, save our VRAM address.
-    ld a, 32             ; Clear the new line
++:  ld (VRAMAddress), hl ; Now, save our VRAM address.
+    ld a, 32*2           ; Clear the new line
     call _WriteBlanks
     ld a, (ScrollFlag)      ; Load the Scroll flag and check if it's set.
     or a
-    jp z, noScroll
-    ld a, (Scroll)       ; If it is, increase the Scroll value, and wrap at 28.
+    jp z, ++
+    ld a, (Scroll)       ; If it is, increase the Scroll value, and wrap at the bottom of the screen.
     inc a
     cp 28
-    jp nz, doScroll
-    ld a, 0
-doScroll:
-    ld (Scroll), a       ; Now, write out Scroll value out to the VDP.
+    jp nz, +
+    xor a
++:  ld (Scroll), a       ; Now, write out Scroll value out to the VDP.
     sla a
     sla a
     sla a
@@ -2524,12 +2789,84 @@ doScroll:
     out (c), a
     ld a, $89
     out (c), a
-noScroll:
-    ld a, 0              ; Reset the cursor X position to 0
+++: xor a              ; Reset the cursor X position to 0
     ld (CursorX), a
   pop de
   pop af
   ret
+ 
+_TMSNextLine:
+    ld a, 40
+    sub b
+    call _WriteBlanks   ; Fill the rest of the line
+    ld c, a             ; Now add this to HL. This is the new address.
+    ld b, 0
+    add hl, bc          ; Now create new address.
+    push hl
+      ld bc, NAME_TABLE_START + 24 * 40 ; Check if we got to the bottom of the screen/name table
+      sbc hl, bc
+    pop hl
+    jp nz, +
+    ld a, 1           ; If we are, set the scroll flag on... we scroll from now on.
+    ld (ScrollFlag), a
+    ld hl, NAME_TABLE_START + 23 * 40 ; If we are, return to the start of the last line
++:  ld (VRAMAddress), hl ; Now, save our VRAM address.
+    ld a, (ScrollFlag)      ; Load the Scroll flag and check if it's set.
+    or a
+    jp z, ++
+
+    ; We scroll by copying all the name table data up the screen...
+    ; We read in 40 bytes at a time and write back one row higher
+    ld b, 23 ; rows to copy
+    ld hl, NameTableAddress + 40 ; write bit unset
+--: push bc
+      call SetVRAMAddress
+
+      push hl
+        ld b, 40 ; columns
+        ld hl, TMSCopyBuffer
+        ld c, VDP_DATA
+-:      ini
+        ; Waste some cycles ; TODO: optimise these timings
+        nop
+        nop
+        jr nz, -
+      pop hl
+      
+      ; then write one row higher
+      ld bc, $4000 - 40 ; $4000 for the write bit, -40 for one row higher
+      add hl, bc
+      call SetVRAMAddress
+      push hl
+        ld b, 40 ; columns
+        ld hl, TMSCopyBuffer
+        ld c, VDP_DATA
+-:      outi
+        ; Waste some cycles ; TODO: optimise these timings
+        nop
+        nop
+        jr nz, -
+      pop hl
+      ; Now set the new read address. 
+      ; HL is pointing at the start of the row we just copied into.
+      ; We add two rows plus we clear the write flag
+      ld bc, -$4000 + 40 * 2
+      add hl, bc
+    pop bc
+    djnz --
+
+    ; Clear the new line
+    ld hl, (VRAMAddress)
+    ld a, 40
+    call _WriteBlanks
+
+
+++  xor a              ; Reset the cursor X position to 0
+    ld (CursorX), a
+  pop de
+  pop af
+  ret
+ 
 
 ; Fill the nametable from HL with A bytes.
 _WriteBlanks:
@@ -2538,17 +2875,11 @@ _WriteBlanks:
     ; Do nothing for count = 0
     or a
     jr z, +
-    ld c, VDP_ADDRESS
-    out (c), l ; Output lower-order bits
-    ; Waste 14 cycles
-    add a, 0
-    add a, 0
-    out (c), h ; Output upper bits + control
+    ld b, a ; save count
+    call SetVRAMAddress
+
     ; Now, zero out the region
-    ; Double so we write n*2 bytes
-    add a, a
-    ld b, a
-    xor a
++:  xor a
   -:out (VDP_DATA), a ; 11 Output the character
     dec b             ;  4
     jr nz, -          ; 12 - 27 cycles between writes
@@ -2557,7 +2888,7 @@ _WriteBlanks:
   ret
 .ends
 
-.if WriteToSRAM == 1
+.ifdef WriteToSRAM
 .ramsection "SRAM writing variables" slot 3
   SRAMPointer dw ; Next address to write to
 .ends
@@ -2606,7 +2937,7 @@ PrintChar_SRAM:
 .ends
 
 ; SDSC tag and SMS rom header
-.sdsctag 0.16, "Z80 Intruction Exerciser", SDSCNotes, "FluBBa, Maxim, Eric R. Quinn, Brett K"
+.sdsctag 0.17, "Z80 Instruction Exerciser", SDSCNotes, "FluBBa, Maxim, Eric R. Quinn, Brett K"
 
 .section "SDSC notes"
 SDSCNotes:
