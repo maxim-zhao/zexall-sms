@@ -6,6 +6,12 @@
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
 ;
+; 2021 (Maxim)
+; + Fixed slot detection code
+; + Added TMS9918a compatible mode. The unmodified should now run on an SG-1000 or SC-3000.
+ ;  - Press Up on a Master System at startup to force mode 4 (SMS graphocs); press Down 
+ ;    to force mode 2 (TMS9918 text mode); else mode 4 detection is used
+; + Updated to build with recent WLA DX
 ; 2016 (Maxim)
 ; + Tidied up source code in various unimportant ways
 ; + Documented all tests explicitly, including case counts
