@@ -2347,8 +2347,11 @@ PrintChar_SDSC:
 .endif
 
 .section "Font" free
-font:
+font_8x8:
 .include "BBC Micro font.inc"
+
+font_6x8:
+.incbin "MSX font.1bpp"
 .ends
 
 .section "VDP initialisation" free
@@ -2609,8 +2612,8 @@ LoadPalette:
 ; Load the font
 LoadFont:
   SET_VRAM_ADDRESS $20 * ' ' ; Load space at tile 32 so we can emit ASCII easily
-  ld hl, font
-  ld bc, _sizeof_font
+  ld hl, font_8x8
+  ld bc, _sizeof_font_8x8
 -:ld a, (hl)
   out (VDP_DATA), a
   out (VDP_DATA), a
@@ -2625,10 +2628,9 @@ LoadFont:
  
 LoadFont_TMS:
   SET_VRAM_ADDRESS 8 * ' '
-  ld hl, font
-  ld bc, _sizeof_font
+  ld hl, font_6x8
+  ld bc, _sizeof_font_6x8
 -:ld a, (hl)
-  add a, a
   out (VDP_DATA), a ; 1bpp
   inc hl
   dec bc
