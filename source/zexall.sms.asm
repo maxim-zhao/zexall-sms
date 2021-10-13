@@ -2509,6 +2509,15 @@ _TMS:
   ret
 
 DetectSystem:
+  ; We allow controller overrides
+  ; Up = SMS
+  ; Down = TMS
+  in a, ($dc)
+  bit 0, a
+  jr z, _IsMode4
+  bit 1, a
+  jr z, _NotMode4
+
   ; We set the video to SMS mode with the sprite table at $3f00.
   ; A TMS9918a will interpret this as mode 0 with the sprite attribute table at $3f80 (and sprite generator table at $1800, although it doesn't matter here).
   call SetUpVDP
