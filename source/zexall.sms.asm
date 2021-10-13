@@ -2453,7 +2453,7 @@ Initialise_Screen:
   push de
   push hl
     call DetectSystem
- 
+    
     ld a, (IsSMSVDP)
     or a
     jp z, _TMS
@@ -2570,67 +2570,6 @@ _IsMode4:
   ; Turn the screen off again
   SET_VDP_REGISTER 1, %10000000
   ret
-  
-
-
-/*
-  ; We try to detect an SMS VDP by reading the V counter.
-  ; On an SMS/GG/etc we should see numbers that go up.by 1 most of the time
-  ; On a TMS9918a it is apparently always writing to the PSG (!) so we should "mute" at the end
-  in a, ($7e)
-  ld c, a ; remember last seen value
-  ld d, 10 ; Total line count
-  ld e, 0 ; Count of how many +1 changes we saw
- 
-@LineLoop:
-  ld b, 10 ; Counter for waiting for the value to change. It should change every 228 cycles which is 4-5 iterations.
--:in a, ($7e) ; Read new value
-  cp c
-  jr nz, @Changed
-  djnz -
-  ; If we get here, it's not changing
-  jr @Finished
- 
-@Changed:; Value changed, but how?
-  sub c
-  cp 1
-  jr nz, @NotChangedBy1
-  ; Changed by 1, good
-  inc e ; Increment counter
-  inc c ; Set c to the value in question
-  ; fall through
-@ChangeCheckDone:
-  dec d
-  jr nz, @LineLoop
-@Finished:
-  ; Check how many good values we saw
-  ld a, e
-  ; We expect at most one "jump", but we will threshold at five
-  cp 5
-  ld a, 0
-  jr c, +
-  ld a, 1
-+:ld (IsSMSVDP), a
-  or a
-  ret nz
-  ; If 0, we write some data to mute the PSG
-  ld a, $9f
-  out ($7f), a
-  ld a, $bf
-  out ($7f), a
-  ld a, $df
-  out ($7f), a
-  ld a, $ff
-  out ($7f), a
-  ret
- 
-@NotChangedBy1:
-  ; SAve the value by re-adding c
-  add c
-  ld c, a
-  jr @ChangeCheckDone
-*/
-
 
 ; Set up our VDP for display. Set the correct video mode, but the display is turned off.
 SetUpVDP:
