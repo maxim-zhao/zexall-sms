@@ -252,11 +252,12 @@ Start:
   ld (PauseFlag), a
 
   ; Output initialisation
-.ifdef WriteToSDSCDebugConsole
-  call Initialise_SDSC
-.endif
 .ifdef WriteToScreen
   call Initialise_Screen
+.endif
+  ; We disable inputs for SDSC console use so we have to do that after the screen check as it uses them for mode overrides
+.ifdef WriteToSDSCDebugConsole
+  call Initialise_SDSC
 .endif
 .ifdef WriteToSRAM
   call InitialiseSRAM
