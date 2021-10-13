@@ -418,12 +418,7 @@ Tests:
   map ' ' to '~' = 32 ; Our font mostly covers 7-bit "ASCII"
 .enda
 .macro MessageString
-  ; Hack: WLA DX has low string length limits so we have to split it up
-.if NARGS == 1
   .asc \1, STREND
-.else
-  .asc \1, \2, STREND
-.endif
 .endm
 
 .macro CRC
@@ -1195,7 +1190,7 @@ ld8rrx:
   TestData3 $20, %00111111, 0,     0,                            0,                            0,                            0,     0,     0,        0,   0,     0 ;  7 bits -> 128 permutations
   TestData3   0,         0, 0, $00ff,                            0,                            0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits ->  55 permutations
   CRCs $4c9e4b7b $2bbb0252
-  MessageString "ld <b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>, " "<b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>"
+  MessageString "ld <b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>, <b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>"
 
 ; ld a, (nnnn) / ld (nnnn), a (46 cases)
 ; Opcodes:
