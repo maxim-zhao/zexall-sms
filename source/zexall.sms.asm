@@ -265,11 +265,11 @@ Start:
 
   ; Print the version
   ; We format it to the screen...
-  ld ix, $7fe0 ; SDSC header
+  ld ix, $7fe0 ; SDSC header location
   ; First the title
   ; Get the pointer
-  ld l, (ix+$c)
-  ld h, (ix+$d)
+  ld l, (ix+12)
+  ld h, (ix+13)
 -:ld a, (hl)
   or a
   jr z, + ; It's null-terminated
@@ -421,6 +421,7 @@ Tests:
   .asc \1, STREND
 .endm
 
+; We use a macro to store these because they have to be big-endian...
 .macro CRC
   .db (\1>>24)&$ff, (\1>>16)&$ff, (\1>>8)&$ff, \1&$ff
 .endm
@@ -1766,7 +1767,7 @@ TestCode:
       pop af
     ld sp, (MachineStateBeforeTest.sp)
 
-_InstructionUnderTest:
+@InstructionUnderTest:
     .dsb 4, 0  ; max 4 byte instruction under Test, modified at runtime
 
     ld (MachineStateAfterTest.sp), sp ; save stack pointer
@@ -1796,9 +1797,8 @@ _InstructionUnderTest:
   pop bc
   pop af
   ret
-_TestCodeEnd:
-.define TestCodeSize _TestCodeEnd - TestCode
-.define OffsetOfInstructionUnderTest _InstructionUnderTest - TestCode
+.define TestCodeSize _sizeof_TestCode
+.define OffsetOfInstructionUnderTest TestCode@InstructionUnderTest - TestCode
 .export TestCodeSize, OffsetOfInstructionUnderTest
 .ends
 
@@ -2264,33 +2264,32 @@ Initialise_SDSC:
   ret
 
 DetectPort3EValue:
-.define RAM_LOCATION TestInRAM + $100 ; +$100 to make Emulicious debug sensibly
   ; Copy some code to RAM
   ld hl, DetectPort3EValue_Code
-  ld de, RAM_LOCATION
-  ld bc, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
+  ld de, TestInRAM ; using the same area as for tests
+  ld bc, _sizeof_DetectPort3EValue_Code
   ldir
-  jp RAM_LOCATION
+  jp TestInRAM
 
 DetectPort3EValue_Code:
   ; We write some values to port $3E and check if we find ourself there
-  ld hl, _ValuesToTry - DetectPort3EValue_Code + RAM_LOCATION ; Pointer after loading to RAM
+  ld hl, @ValuesToTry - DetectPort3EValue_Code + TestInRAM ; Pointer after loading to RAM
 --:
   ld a, (hl)
   or a
-  jr z, _AllFailed
+  jr z, @AllFailed
   out ($3e), a
   push af
   push hl
     ; Check if it matches
     ld hl, DetectPort3EValue_Code
-    ld de, RAM_LOCATION
-    ld b, DetectPort3EValue_CodeEnd - DetectPort3EValue_Code
+    ld de, TestInRAM
+    ld b, _sizeof_DetectPort3EValue_Code
   -:ld a, (de)
     cp (hl)
     inc hl
     inc de
-    jr nz, _Fail
+    jr nz, @Fail
     djnz -
   pop hl
   pop af 
@@ -2298,20 +2297,20 @@ DetectPort3EValue_Code:
   ld (Port3EValue), a
   ret
  
-_Fail:
+@Fail:
   pop hl
   pop af
   inc hl
   jr --
 
-_AllFailed:
+@AllFailed:
   ; Emulator? Let's put a default there
   ld a, %10101011 ; RAM + IO + cart
   ld (Port3EValue), a
   out ($3e), a
   ret
 
-_ValuesToTry:
+@ValuesToTry:
 .db %01101011 ; RAM + IO + expansion
 .db %10101011 ; RAM + IO + cart
 .db %11001011 ; RAM + IO + card
@@ -2325,7 +2324,6 @@ _ValuesToTry:
 ;    `-------- Expansion
 
 .db 0 ; terminator
-DetectPort3EValue_CodeEnd:
 
 PrintChar_SDSC:
   push af
@@ -2519,14 +2517,14 @@ DetectSystem:
   call ClearVRAM
   ; Screen is off so we can write fast...
   ; We set up the sprite table for five sprites on top of each other (for mode 4)
-  ld hl, $4000 + 32
+  ld hl, VRAM_WRITE_MASK + 32
   call SetVRAMAddress
   ld b, 32 ; 32 bytes = 1 tile
   ld a, $ff
 -:out (VDP_DATA), a
   djnz -
   ; ys
-  ld hl, SpriteTableAddress | $4000
+  ld hl, SpriteTableAddress | VRAM_WRITE_MASK
   call SetVRAMAddress
   xor a ; y = 0
   ld b, 5
@@ -2535,7 +2533,7 @@ DetectSystem:
   ld a, 208 ; terminator
   out (VDP_DATA), a
   ; xns
-  ld hl, SpriteTableAddress | $4000 + 128
+  ld hl, SpriteTableAddress | VRAM_WRITE_MASK + 128
   call SetVRAMAddress
   ld b, 5
 -:ld a, 208 ; x = 208
@@ -2665,7 +2663,7 @@ ClearVRAM:
 LoadPalette:
   SET_CRAM_ADDRESS 0
   ld hl, Palette
-  ld b, PaletteEnd - Palette
+  ld b, _sizeof_Palette
   ld c, VDP_DATA
   otir
   ret
