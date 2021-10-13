@@ -2656,7 +2656,6 @@ ClearVRAM:
 -:out (VDP_DATA), a
   sbc hl, bc
   jr nz, -
-
   ret
  
 ; Install our palette into the VDP
@@ -2700,13 +2699,10 @@ LoadFont_TMS:
   ret
 
 SetVRAMAddress:
-  ; address in hl
+  ; address in hl, preserve a
   push af
     ld a, l
     out (VDP_ADDRESS), a
-    ; Delay for timing
-    ; TODO: optimise?
-    add a, 0
     ld a, h
     out (VDP_ADDRESS), a
   pop af
@@ -2762,7 +2758,7 @@ UpdateProgressIndicator:
     ld b, 0
     ld c, VDP_DATA
     out (c), a     ; Output the character
-    ; Waste 14 cyctles
+    ; Waste 14 cycles -> 26 cycles between writes
     add a, 0
     add a, 0
     out (c), b
@@ -2790,15 +2786,12 @@ PrintChar_SMS:
     call SetVRAMAddress
 
     ld c, VDP_DATA
-    ; waste 7 cycles
-    add a, 0
     out (c), a     ; Output the character
 
     ld a, (IsSMSVDP)
-    or a
-    jr z, +
-    ; SMS mode: write upper byte
-    xor a
+    dec a
+    jr nz, +
+    ; SMS mode: write upper byte (we just made a zero)
     out (c), a
     inc hl ; and move pointer on an extra byte
 +:  inc hl
@@ -2933,15 +2926,12 @@ _TMSNextLine:
         ld b, 40 ; columns
         ld hl, TMSCopyBuffer
         ld c, VDP_DATA
--:      ini
-        ; Waste some cycles ; TODO: optimise these timings
-        nop
-        nop
-        jr nz, -
+-:      ini                 ; 16
+        jr nz, -            ; 12 -> 28 cycles total (inir is 21 which is too fast)
       pop hl
       
       ; then write one row higher
-      ld bc, $4000 - 40 ; $4000 for the write bit, -40 for one row higher
+      ld bc, VRAM_WRITE_MASK - 40 ; write bit, -40 for one row higher
       add hl, bc
       call SetVRAMAddress
       push hl
@@ -2949,15 +2939,12 @@ _TMSNextLine:
         ld hl, TMSCopyBuffer
         ld c, VDP_DATA
 -:      outi
-        ; Waste some cycles ; TODO: optimise these timings
-        nop
-        nop
-        jr nz, -
+        jr nz, -            ; same timing as ini loop above
       pop hl
       ; Now set the new read address. 
       ; HL is pointing at the start of the row we just copied into.
       ; We add two rows plus we clear the write flag
-      ld bc, -$4000 + 40 * 2
+      ld bc, -VRAM_WRITE_MASK + 40 * 2
       add hl, bc
     pop bc
     djnz --
@@ -2989,7 +2976,7 @@ _WriteBlanks:
 +:  xor a
   -:out (VDP_DATA), a ; 11 Output the character
     dec b             ;  4
-    jr nz, -          ; 12 - 27 cycles between writes
+    jr nz, -          ; 12 -> 27 cycles between writes (djnz would give 24)
 +:pop bc
   pop af
   ret
