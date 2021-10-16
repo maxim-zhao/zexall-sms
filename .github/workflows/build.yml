@@ -1,0 +1,31 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: build
+    runs-on: windows-latest
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v2
+
+    - name: get tools
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri https://github.com/maxim-zhao/sms-build-tools/releases/download/1.0.73/tools.7z -OutFile tools.7z
+        7z x tools.7z -otools
+
+    - name: build
+      shell: cmd
+      working-directory: src
+      run: |
+        ..\tools\compile.bat zexall.sms.asm
+        
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: rom
+        path: |
+          zexall.sms
