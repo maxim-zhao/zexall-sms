@@ -42,3 +42,21 @@ The binary zexall.sms uses the SMS VDP.
 
 The binary zexall_sdsc.sms uses the SDSC Debug Console.
 
+=============================
+
+2021/10/16
+
+Version 0.17
+
+This version supports various options for output: it will emit to the SMS 
+VDP in mode 4 if detected, else it will try a TMS9918 VDP in mode 2 (text 
+mode), so this should work on an SG-1000 or SC-3000. It will also emit 
+simultaneously to the SDSC Debug Console and also write ASCII text to SRAM.
+
+Press Up to force mode 4, and Down to force text mode.
+
+zexall.sms includes the undocumented bits in the flags register, zexdoc.sms
+ignores them.
+
+You can build your own version if you want some different combination of
+settings.

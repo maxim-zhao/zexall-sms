@@ -2,3 +2,5 @@
 *.sym
 *.zip
 *.sav
+/tools/
+*.o

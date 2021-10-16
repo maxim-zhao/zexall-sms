@@ -14,17 +14,19 @@ jobs:
     - name: get tools
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri https://github.com/maxim-zhao/sms-build-tools/releases/download/1.0.73/tools.7z -OutFile tools.7z
+        Invoke-WebRequest -Uri https://github.com/maxim-zhao/sms-build-tools/releases/download/1.0.96/tools.7z -OutFile tools.7z
         7z x tools.7z -otools
 
     - name: build
       shell: cmd
       working-directory: source
       run: |
-        ..\tools\compile.bat zexall.sms.asm
+        ..\tools\make all
 
     - uses: actions/upload-artifact@v2
       with:
-        name: rom
+        name: roms
         path: |
           source\zexall.sms
+          source\zexdoc.sms
+          

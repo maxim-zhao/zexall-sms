@@ -1,4 +1,4 @@
-.define DocumentedOnly ; if undefined then undocumented flags get checked too
+;.define UndocumentedFlags ; if defined then undocumented flags get checked too
 .define WriteToSRAM ; if defined then text is emitted to SRAM
 .define WriteToScreen ; if defined then text is emitted to the screen
 .define WriteToSDSCDebugConsole ; if defined then text is emitted to the SDSC Debug Console
@@ -162,10 +162,10 @@ banks 4
   ; Total RAM use is <256 bytes
 .ends
 
-.ifdef DocumentedOnly
-.define FlagMask %11010111  ; Mask for flag register
-.else
+.ifdef UndocumentedFlags
 .define FlagMask %11111111  ; Mask for flag register
+.else
+.define FlagMask %11010111  ; Mask for flag register
 .endif
 ;                 SZXHXPNC
 ;                 |||||||`- Carry
@@ -433,10 +433,10 @@ Tests:
 .endm
 
 .macro CRCs
-.ifdef DocumentedOnly
-  CRC \1
-.else
+.ifdef UndocumentedFlags
   CRC \2
+.else
+  CRC \1
 .endif
 .endm
 
@@ -1884,10 +1884,10 @@ PrintChar:
 
 ; Messages
 Message_TitleInfo:
-.ifdef DocumentedOnly
-  .asc "Documented"
-.else
+.ifdef UndocumentedFlags
   .asc "Undocumented"
+.else
+  .asc "Documented"
 .endif
   .asc " flags version", NEWLINE, 
   .asc "Outputs:", NEWLINE, STREND
