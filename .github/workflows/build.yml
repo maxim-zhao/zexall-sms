@@ -21,6 +21,7 @@ jobs:
       shell: cmd
       working-directory: src
       run: |
+        dir ..\tools
         ..\tools\compile.bat zexall.sms.asm
         
 
