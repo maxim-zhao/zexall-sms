@@ -19,14 +19,12 @@ jobs:
 
     - name: build
       shell: cmd
-      working-directory: src
+      working-directory: source
       run: |
-        dir ..\tools
         ..\tools\compile.bat zexall.sms.asm
-        
 
     - uses: actions/upload-artifact@v2
       with:
         name: rom
         path: |
-          zexall.sms
+          source\zexall.sms
