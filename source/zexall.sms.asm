@@ -1804,7 +1804,7 @@ TestCode:
   pop af
   ret
 .define TestCodeSize _sizeof_TestCode
-.define OffsetOfInstructionUnderTest TestCode@InstructionUnderTest - TestCode
+.define OffsetOfInstructionUnderTest $17 ; WLA DX is computing this wrong now, see https://github.com/vhelin/wla-dx/issues/443: TestCode@InstructionUnderTest - TestCode
 .export TestCodeSize, OffsetOfInstructionUnderTest
 .ends
 
