@@ -1535,7 +1535,7 @@ _Pass:
 ; hl = pointer to base case
 ; de = destination
 _SetupTestCase:
---:
+;--:
   push bc
     push de
     push hl
@@ -1581,7 +1581,7 @@ _SetupTestCase:
     inc de
   pop bc
   inc hl
-  djnz --
+  djnz _SetupTestCase
   ret
 
 ; get next counter bit in low bit of a
