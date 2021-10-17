@@ -1786,10 +1786,13 @@ TestCode:
     ld sp, (StackPointerSaved) ; restore stack pointer
     ld hl, (MachineStateBeforeTest.memop) ; overwrite memop with initial value
     ld (MachineStateAfterTest.memop), hl
+.ifndef UndocumentedFlags
+    ; Mask out undocumented flags
     ld hl, MachineStateAfterTest.f ; flags after Test
     ld a, (hl)
     and FlagMask  ; mask-out irrelevant bits
     ld (hl), a
+.endif
     ld b, _sizeof_MachineState
     ld de, MachineStateAfterTest
     ld hl, CRCValue
