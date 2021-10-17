@@ -9,9 +9,10 @@
 ; 2021 (Maxim)
 ; + Fixed slot detection code
 ; + Added TMS9918a compatible mode. The unmodified should now run on an SG-1000 or SC-3000.
- ;  - Press Up on a Master System at startup to force mode 4 (SMS graphics); press Down 
+ ;  - Press Up on a Master System at startup to force mode 4 (SMS graphics); press Down
  ;    to force mode 2 (TMS9918 text mode); else mode 4 detection is used
 ; + Updated to build with recent WLA DX
+; + Added optimised CRC code from asynchronous. Now it is 29% faster!
 ; 2016 (Maxim)
 ; + Tidied up source code in various unimportant ways
 ; + Documented all tests explicitly, including case counts
@@ -156,9 +157,8 @@ banks 4
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
   IsSMSVDP                db
-  TestInRAM               dsb 100 ; WLA DX doesn't (?) have a way to make this auto-sized. It only needs 79 bytes, we specify more to avoid breaking if we change the code.
+  TestInRAM               dsb 110 ; WLA DX doesn't (?) have a way to make this auto-sized. It needs 110 bytes in "fast CRC" mode.
   TMSCopyBuffer           dsb 40
-  ; Total RAM use is <256 bytes
 .ends
 
 .ifdef UndocumentedFlags
@@ -286,7 +286,7 @@ Start:
   ; Add a space
   ld a, ' '
   call PrintChar
- 
+
   ; Then the major version... we assume a single digit
   ld a, (ix+4)
   call PrintNibble
@@ -297,10 +297,10 @@ Start:
   call PrintByte
   ld a, NEWLINE
   call PrintChar
- 
+
   ld de, Message_TitleInfo
   call OutputText
-  
+
 .ifdef WriteToSDSCDebugConsole
   ld de, Message_SDSCMode
   call OutputText
@@ -347,7 +347,7 @@ Start:
   ld a, SDSC_DEBUGCONSOLE_COMMAND_SUSPENDEMULATION
   out (SDSC_OUTPORT_DEBUGCONSOLE_COMMAND), a
 .endif
- 
+
 -:jp -  ; Infinite loop to stop program
 .ends
 
@@ -1793,6 +1793,60 @@ TestCode:
     and FlagMask  ; mask-out irrelevant bits
     ld (hl), a
 .endif
+
+.define FASTCRC
+.ifdef FASTCRC
+    ; Update CRC - speed optimised version
+    ; Based on code by asynchronous: https://www.smspower.org/forums/18523-BitBangingAndCartridgeDumping
+    ld hl, MachineStateAfterTest
+    ld b, _sizeof_MachineState
+    ; get current CRC into d'e'b'c'
+    exx
+      ld hl, CRCValue
+      push hl ; for later
+      ld d,(hl)
+      inc hl
+      ld e,(hl)
+      inc hl
+      ld b,(hl)
+      inc hl
+      ld c,(hl)
+    exx
+-:  ld a,(hl)     ; Get the next byte to be CRC'ed
+    exx
+      xor c       ; XOR the byte with the LSB of the CRC32
+      ld l, a     ; generate the LUT pointer
+      ld h, (>CRCLookupTable2 >> 2) ; MSB of LUT >> 2 NOTE! LUT base address must be on a 1KB boundary e.g. $C400
+      add hl, hl
+      add hl, hl
+      ld a, b     ; XOR the LUT with the CRC >> 8
+      xor (hl)
+      ld c, a
+      inc hl
+      ld a, e
+      xor (hl)
+      ld b, a
+      inc hl
+      ld a, d
+      xor (hl)
+      ld e, a
+      inc hl
+      ld d, (hl)  ; And shift the MSB into d
+    exx
+    inc hl
+    djnz -
+    exx
+      ; Save intermediate result in RAM
+      pop hl ; CRCValue
+      ld (hl), d
+      inc hl
+      ld (hl), e
+      inc hl
+      ld (hl), b
+      inc hl
+      ld (hl), c
+    exx
+.else
     ld b, _sizeof_MachineState
     ld de, MachineStateAfterTest
     ld hl, CRCValue
@@ -1800,6 +1854,7 @@ TestCode:
     inc de
     call UpdateCRC  ; accumulate crc of this test case
     djnz -
+.endif
   pop hl
   pop de
   pop bc
@@ -1891,9 +1946,9 @@ Message_TitleInfo:
 .else
   .asc "Documented"
 .endif
-  .asc " flags version", NEWLINE, 
+  .asc " flags version", NEWLINE,
   .asc "Outputs:", NEWLINE, STREND
- 
+
 Message_SDSCMode:
   .asc "* SDSC Debug Console", NEWLINE, STREND
 
@@ -1905,7 +1960,7 @@ Message_SMSMode:
 
 Message_TMSMode:
   .asc "* TMS9918 Text Mode", NEWLINE, STREND
- 
+
 Message_Done:
   .asc "Tests complete", NEWLINE, STREND
 Message_Pass:
@@ -1938,6 +1993,7 @@ CompareCRC:
   pop bc
   ret
 
+.ifndef FASTCRC
 ; 32-bit crc routine
 ; entry: a contains next byte, hl points to crc
 ; exit:  crc updated
@@ -1973,6 +2029,7 @@ UpdateCRC:
   pop bc
   pop af
   ret
+.endif
 
 InitialiseCRC:
   push af
@@ -1989,6 +2046,7 @@ InitialiseCRC:
   pop af
   ret
 
+.ifndef FASTCRC
 ; CRC lookup table
 CRCLookupTable:
   CRC $00000000
@@ -2247,6 +2305,45 @@ CRCLookupTable:
   CRC $c30c8ea1
   CRC $5a05df1b
   CRC $2d02ef8d
+.endif
+.ends
+
+
+.section "CRC lookup table" align 1024
+CRCLookupTable2:
+; These are all stored little-endian
+.dd $00000000 $77073096 $ee0e612c $990951ba $076dc419 $706af48f $e963a535 $9e6495a3
+.dd $0edb8832 $79dcb8a4 $e0d5e91e $97d2d988 $09b64c2b $7eb17cbd $e7b82d07 $90bf1d91
+.dd $1db71064 $6ab020f2 $f3b97148 $84be41de $1adad47d $6ddde4eb $f4d4b551 $83d385c7
+.dd $136c9856 $646ba8c0 $fd62f97a $8a65c9ec $14015c4f $63066cd9 $fa0f3d63 $8d080df5
+.dd $3b6e20c8 $4c69105e $d56041e4 $a2677172 $3c03e4d1 $4b04d447 $d20d85fd $a50ab56b
+.dd $35b5a8fa $42b2986c $dbbbc9d6 $acbcf940 $32d86ce3 $45df5c75 $dcd60dcf $abd13d59
+.dd $26d930ac $51de003a $c8d75180 $bfd06116 $21b4f4b5 $56b3c423 $cfba9599 $b8bda50f
+.dd $2802b89e $5f058808 $c60cd9b2 $b10be924 $2f6f7c87 $58684c11 $c1611dab $b6662d3d
+.dd $76dc4190 $01db7106 $98d220bc $efd5102a $71b18589 $06b6b51f $9fbfe4a5 $e8b8d433
+.dd $7807c9a2 $0f00f934 $9609a88e $e10e9818 $7f6a0dbb $086d3d2d $91646c97 $e6635c01
+.dd $6b6b51f4 $1c6c6162 $856530d8 $f262004e $6c0695ed $1b01a57b $8208f4c1 $f50fc457
+.dd $65b0d9c6 $12b7e950 $8bbeb8ea $fcb9887c $62dd1ddf $15da2d49 $8cd37cf3 $fbd44c65
+.dd $4db26158 $3ab551ce $a3bc0074 $d4bb30e2 $4adfa541 $3dd895d7 $a4d1c46d $d3d6f4fb
+.dd $4369e96a $346ed9fc $ad678846 $da60b8d0 $44042d73 $33031de5 $aa0a4c5f $dd0d7cc9
+.dd $5005713c $270241aa $be0b1010 $c90c2086 $5768b525 $206f85b3 $b966d409 $ce61e49f
+.dd $5edef90e $29d9c998 $b0d09822 $c7d7a8b4 $59b33d17 $2eb40d81 $b7bd5c3b $c0ba6cad
+.dd $edb88320 $9abfb3b6 $03b6e20c $74b1d29a $ead54739 $9dd277af $04db2615 $73dc1683
+.dd $e3630b12 $94643b84 $0d6d6a3e $7a6a5aa8 $e40ecf0b $9309ff9d $0a00ae27 $7d079eb1
+.dd $f00f9344 $8708a3d2 $1e01f268 $6906c2fe $f762575d $806567cb $196c3671 $6e6b06e7
+.dd $fed41b76 $89d32be0 $10da7a5a $67dd4acc $f9b9df6f $8ebeeff9 $17b7be43 $60b08ed5
+.dd $d6d6a3e8 $a1d1937e $38d8c2c4 $4fdff252 $d1bb67f1 $a6bc5767 $3fb506dd $48b2364b
+.dd $d80d2bda $af0a1b4c $36034af6 $41047a60 $df60efc3 $a867df55 $316e8eef $4669be79
+.dd $cb61b38c $bc66831a $256fd2a0 $5268e236 $cc0c7795 $bb0b4703 $220216b9 $5505262f
+.dd $c5ba3bbe $b2bd0b28 $2bb45a92 $5cb36a04 $c2d7ffa7 $b5d0cf31 $2cd99e8b $5bdeae1d
+.dd $9b64c2b0 $ec63f226 $756aa39c $026d930a $9c0906a9 $eb0e363f $72076785 $05005713
+.dd $95bf4a82 $e2b87a14 $7bb12bae $0cb61b38 $92d28e9b $e5d5be0d $7cdcefb7 $0bdbdf21
+.dd $86d3d2d4 $f1d4e242 $68ddb3f8 $1fda836e $81be16cd $f6b9265b $6fb077e1 $18b74777
+.dd $88085ae6 $ff0f6a70 $66063bca $11010b5c $8f659eff $f862ae69 $616bffd3 $166ccf45
+.dd $a00ae278 $d70dd2ee $4e048354 $3903b3c2 $a7672661 $d06016f7 $4969474d $3e6e77db
+.dd $aed16a4a $d9d65adc $40df0b66 $37d83bf0 $a9bcae53 $debb9ec5 $47b2cf7f $30b5ffe9
+.dd $bdbdf21c $cabac28a $53b39330 $24b4a3a6 $bad03605 $cdd70693 $54de5729 $23d967bf
+.dd $b3667a2e $c4614ab8 $5d681b02 $2a6f2b94 $b40bbe37 $c30c8ea1 $5a05df1b $2d02ef8d
 .ends
 
 .section "SDSC console" free
@@ -2300,11 +2397,11 @@ DetectPort3EValue_Code:
     jr nz, @Fail
     djnz -
   pop hl
-  pop af 
+  pop af
   ; success
   ld (Port3EValue), a
   ret
- 
+
 @Fail:
   pop hl
   pop af
@@ -2464,7 +2561,7 @@ Initialise_Screen:
   push de
   push hl
     call DetectSystem
-    
+
     ld a, (IsSMSVDP)
     or a
     jp z, _TMS
@@ -2474,7 +2571,7 @@ _SMS:
     call LoadFont
     call LoadPalette
     jr +
-   
+
 _TMS:
     call SetUpVDP_TMS
     call ClearVRAM
@@ -2553,7 +2650,7 @@ DetectSystem:
   out (VDP_DATA), a
   djnz -
   ; A TMS9918a will see the "xns" as the sprite table start, and thus see a terminator right away, and therefore have no sprites.
-  
+
   ; Clear any status bit
   in a, (VDP_STATUS)
   ; Next we turn on the screen... without interrupts
@@ -2590,7 +2687,7 @@ SetUpVDP:
 -:ld c, VDP_REGISTER
   otir
   ret
- 
+
 SetUpVDP_TMS:
   ; Set VDP registers (TMS mode)
   ld hl, VDPRegisterInitialisation_TMS
@@ -2607,7 +2704,7 @@ ClearVRAM:
   sbc hl, bc
   jr nz, -
   ret
- 
+
 ; Install our palette into the VDP
 LoadPalette:
   SET_CRAM_ADDRESS 0
@@ -2633,7 +2730,7 @@ LoadFont:
   or c
   jr nz, -
   ret
- 
+
 LoadFont_TMS:
   SET_VRAM_ADDRESS 8 * ' '
   ld hl, font_6x8
@@ -2759,7 +2856,7 @@ PrintChar_SMS:
     cp 31
     jp nz, _PrintCharDone
     jr ++
-   
+
 +:  ld a, (CursorX)
     cp 40
     jp nz, _PrintCharDone
@@ -2783,7 +2880,7 @@ _NewLine:
     or a
     jr z, _NextLine
     jr _PrintCharDone
-   
+
   ; Here we do the job of scrolling the display, computing the
   ; new VRAM address, and all that fun stuff.
 _NextLine:
@@ -2791,8 +2888,8 @@ _NextLine:
     ; Get the cursor position and find out how far it was to the end of the line.
     ld a, (CursorX)
     ld b, a
-   
-    ; Here we fork for TMS vs. SMS   
+
+    ; Here we fork for TMS vs. SMS
     ld a, (IsSMSVDP)
     or a
     jr z, _TMSNextLine
@@ -2843,7 +2940,7 @@ _NextLine:
   pop de
   pop af
   ret
- 
+
 _TMSNextLine:
     ld a, 40
     sub b
@@ -2878,7 +2975,7 @@ _TMSNextLine:
 -:      ini                 ; 16
         jr nz, -            ; 12 -> 28 cycles total (inir is 21 which is too fast)
       pop hl
-      
+
       ; then write one row higher
       ld bc, VRAM_WRITE_MASK - 40 ; write bit, -40 for one row higher
       add hl, bc
@@ -2890,7 +2987,7 @@ _TMSNextLine:
 -:      outi
         jr nz, -            ; same timing as ini loop above
       pop hl
-      ; Now set the new read address. 
+      ; Now set the new read address.
       ; HL is pointing at the start of the row we just copied into.
       ; We add two rows plus we clear the write flag
       ld bc, -VRAM_WRITE_MASK + 40 * 2
@@ -2909,7 +3006,7 @@ _TMSNextLine:
   pop de
   pop af
   ret
- 
+
 
 ; Fill the nametable from HL with A bytes.
 _WriteBlanks:
