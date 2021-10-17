@@ -94,11 +94,10 @@
 ; WLA-DX banking setup
 .memorymap
 defaultslot 0
-slotsize $4000
-slot 0 $0000  ; ROM
-slot 1 $4000  ; ROM (not used)
-slot 2 $8000  ; ROM (not used)
-slot 3 $c000  ; RAM
+slot 0 $0000 $4000 ; ROM
+slot 1 $4000 $4000 ; ROM (not used)
+slot 2 $8000 $4000 ; ROM (not used)
+slot 3 $c000 $2000 ; RAM
 .endme
 
 ; We produce a 64KB ROM in order to make some emulators enable SRAM. Almost all is unused.
