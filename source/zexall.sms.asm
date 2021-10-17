@@ -95,9 +95,9 @@
 .memorymap
 defaultslot 0
 slot 0 $0000 $4000 ; ROM
-slot 1 $4000 $4000 ; ROM (not used)
+slot 1 $4000 $4000 ; ROM (only used for headers)
 slot 2 $8000 $4000 ; ROM (not used)
-slot 3 $c000 $2000 ; RAM
+slot 3 $c000 $0400 ; RAM (1KB for SG-1000 compatibility)
 .endme
 
 ; We produce a 64KB ROM in order to make some emulators enable SRAM. Almost all is unused.
@@ -182,7 +182,7 @@ banks 4
 .section "Boot section" Force
   di
   im 1
-  ld sp, $dff0 ; On a Master System, this is the top of RAM. On an SG-1000 or SC-3000 it will mirror to the top of RAM.
+  ld sp, $c3f0 ; This is near the top of RAM for an SG-1000. We don't need much stack.
   jp Start
 .ends
 
