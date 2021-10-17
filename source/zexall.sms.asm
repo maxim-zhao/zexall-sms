@@ -327,7 +327,7 @@ Start:
   ; Copy test code to RAM
   ld de, TestInRAM
   ld hl, TestCode
-  ld bc, TestCodeSize
+  ld bc, _sizeof_TestCode
   ldir
 
   ; Run tests, stop when first word of test data is 0
@@ -1803,9 +1803,9 @@ TestCode:
   pop bc
   pop af
   ret
-.define TestCodeSize _sizeof_TestCode
+
 .define OffsetOfInstructionUnderTest @InstructionUnderTest - TestCode
-.export TestCodeSize, OffsetOfInstructionUnderTest
+.export OffsetOfInstructionUnderTest
 .ends
 
 .section "Text display" free
