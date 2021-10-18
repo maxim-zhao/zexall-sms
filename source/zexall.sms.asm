@@ -1861,7 +1861,7 @@ TestCode:
   pop af
   ret
 
-.define OffsetOfInstructionUnderTest @InstructionUnderTest - TestCode
+.define OffsetOfInstructionUnderTest TestCode@InstructionUnderTest - TestCode
 .export OffsetOfInstructionUnderTest
 .ends
 
