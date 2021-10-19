@@ -348,6 +348,7 @@ Start:
   out (SDSC_OUTPORT_DEBUGCONSOLE_COMMAND), a
 .endif
 
+Done:
 -:jp -  ; Infinite loop to stop program
 .ends
 
@@ -3080,14 +3081,8 @@ PrintChar_SRAM:
 .sdsctag \
   0.18, \
   "Z80 Instruction Exerciser", \
-  SDSCNotes, \
+  "Based on ZEXALL by Frank Cringle, " \
+  "with credit to J.G.Harston\n" \
+  "See https://www.smspower.org/Homebrew/ZEXALL-SMS\n" \
+  "Fonts by Damien Guard, see https://damieng.com/typography/zx-origins/", \
   "FluBBa, Maxim, Eric R. Quinn, Brett K, asynchronous, and others on the SMS Power! forums"
-
-.section "SDSC notes"
-SDSCNotes:
-.db "Based on ZEXALL by Frank Cringle, "
-.db "with credit to J.G.Harston\n"
-.db "See https://www.smspower.org/Homebrew/ZEXALL-SMS\n"
-.db "Fonts from by Damien Guard, see https://damieng.com/typography/zx-origins/"
-.db 0
-.ends
