@@ -3082,7 +3082,7 @@ PrintChar_SRAM:
   0.18, \
   "Z80 Instruction Exerciser", \
   "Based on ZEXALL by Frank Cringle, " \
-  "with credit to J.G.Harston\n" \
-  "See https://www.smspower.org/Homebrew/ZEXALL-SMS\n" \
-  "Fonts by Damien Guard, see https://damieng.com/typography/zx-origins/", \
+    "with credit to J.G.Harston\n" \
+    "See https://www.smspower.org/Homebrew/ZEXALL-SMS\n" \
+    "Fonts by Damien Guard, see https://damieng.com/typography/zx-origins/", \
   "FluBBa, Maxim, Eric R. Quinn, Brett K, asynchronous, and others on the SMS Power! forums"
