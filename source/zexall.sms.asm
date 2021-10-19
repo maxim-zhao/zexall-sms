@@ -2453,10 +2453,10 @@ PrintChar_SDSC:
 
 .section "Font" free
 font_8x8:
-.include "BBC Micro font.inc"
+.incbin "ZX_Eurostile.1bpp"
 
 font_6x8:
-.incbin "MSX font.1bpp"
+.incbin "Envious.1bpp"
 .ends
 
 .section "VDP initialisation" free
@@ -3077,11 +3077,17 @@ PrintChar_SRAM:
 .ends
 
 ; SDSC tag and SMS rom header
-.sdsctag 0.17, "Z80 Instruction Exerciser", SDSCNotes, "FluBBa, Maxim, Eric R. Quinn, Brett K"
+.sdsctag \
+  0.18, \
+  "Z80 Instruction Exerciser", \
+  SDSCNotes, \
+  "FluBBa, Maxim, Eric R. Quinn, Brett K, asynchronous, and others on the SMS Power! forums"
 
 .section "SDSC notes"
 SDSCNotes:
 .db "Based on ZEXALL by Frank Cringle, "
-.db "with credit to J.G.Harston"
+.db "with credit to J.G.Harston\n"
+.db "See https://www.smspower.org/Homebrew/ZEXALL-SMS\n"
+.db "Fonts from by Damien Guard, see https://damieng.com/typography/zx-origins/"
 .db 0
 .ends

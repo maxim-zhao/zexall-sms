@@ -60,3 +60,6 @@ ignores them.
 
 You can build your own version if you want some different combination of
 settings.
+
+Fonts used are https://damieng.com/typography/zx-origins/envious for mode 2
+and https://damieng.com/typography/zx-origins/zx-eurostile for mode 4.
