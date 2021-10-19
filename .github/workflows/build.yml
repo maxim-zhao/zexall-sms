@@ -28,6 +28,5 @@ jobs:
       with:
         name: roms
         path: |
-          source\zexall.sms
-          source\zexdoc.sms
+          source\zexall.zip
           

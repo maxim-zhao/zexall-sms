@@ -1,9 +1,10 @@
 WLA-Z80 = wla-z80
 WLALINK = wlalink
 BMP2TILE = bmp2tile
-BINS = *.sms *.o *.makefile *.1bpp
+GENERATED_FILES = *.sms *.o *.makefile *.1bpp *.sym *.zip
+7Z = 7z
 
-all: zexall.sms zexdoc.sms
+all: zexall.zip
 
 # We get WLA DX to generate the dependencies list for our source
 zexall.makefile: zexall.sms.asm
@@ -31,5 +32,9 @@ zexdoc.sms.o:
 zexdoc.sms: zexdoc.sms.o linkfile-doc
 	$(WLALINK) -d -r -v -S -A linkfile-doc $@
 
+zexall.zip: zexall.sms zexdoc.sms ..\README.md ..\LICENSE
+	7z a $@ $^
+	7z a $@ ..\source $(addprefix -xr!, $(GENERATED_FILES))
+
 clean:
-	del $(BINS)
+	del $(GENERATED_FILES)
