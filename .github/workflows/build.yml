@@ -21,7 +21,8 @@ jobs:
       shell: cmd
       working-directory: source
       run: |
-        ..\tools\make all
+        path ..\tools;%path%
+        make all
 
     - uses: actions/upload-artifact@v2
       with:
