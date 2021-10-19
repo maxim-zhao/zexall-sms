@@ -34,7 +34,7 @@ zexdoc.sms: zexdoc.sms.o linkfile-doc
 
 zexall.zip: zexall.sms zexdoc.sms ..\README.md ..\LICENSE
 	7z a $@ $^
-	7z a $@ ..\source $(addprefix -xr!, $(GENERATED_FILES))
+	7z a $@ ../source $(addprefix -xr!, $(GENERATED_FILES))
 
 clean:
 	del $(GENERATED_FILES)
