@@ -157,8 +157,9 @@ banks 4
   MachineStateBeforeTest  instanceof MachineState
   PauseFlag               db
   IsSMSVDP                db
-  TestInRAM               dsb 110 ; WLA DX doesn't (?) have a way to make this auto-sized. It needs 110 bytes in "fast CRC" mode.
   TMSCopyBuffer           dsb 40
+  TestInRAM               dsb 117 ; WLA DX doesn't (?) have a way to make this auto-sized. It needs to be the larger of the two reported block sizes.
+  ; Putting it at the end means we have some safety in case it gets bigger...
 .ends
 
 .ifdef UndocumentedFlags
@@ -1758,6 +1759,7 @@ shift:
 
 .section "Test harness" free
 ; Self-modifying so it should be in RAM
+.block "Test code"
 TestCode:
   push af
   push bc
@@ -1850,7 +1852,7 @@ TestCode:
   pop bc
   pop af
   ret
-
+.endb
 .define OffsetOfInstructionUnderTest TestCode@InstructionUnderTest - TestCode
 .export OffsetOfInstructionUnderTest
 .ends
