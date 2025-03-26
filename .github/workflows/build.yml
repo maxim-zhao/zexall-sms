@@ -14,7 +14,7 @@ jobs:
     - name: get tools
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri https://github.com/maxim-zhao/sms-build-tools/releases/download/1.0.449/tools.7z -OutFile tools.7z
+        Invoke-WebRequest -Uri https://github.com/maxim-zhao/sms-build-tools/releases/download/1.0.382/tools.7z -OutFile tools.7z
         7z x tools.7z -otools
 
     - name: build
