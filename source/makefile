@@ -8,10 +8,10 @@ all: zexall.zip
 
 # We get WLA DX to generate the dependencies list for our source
 zexall.makefile: zexall.sms.asm
-	$(WLA-Z80) -t -M -MF $@ -D UndocumentedFlags -o zexall.sms.o $^
+	$(WLA-Z80) -t -M -D UndocumentedFlags -o zexall.sms.o $^ > $@
 
 zexdoc.makefile: zexall.sms.asm
-	$(WLA-Z80) -t -M -MF $@ -o zexdoc.sms.o $^
+	$(WLA-Z80) -t -M -o zexdoc.sms.o $^ > $@
 
 include zexall.makefile
 include zexdoc.makefile
