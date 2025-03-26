@@ -1,4 +1,4 @@
-;.define UndocumentedFlags ; if defined then undocumented flags get checked too
+;.redefine UndocumentedFlags ; if defined then undocumented flags get checked too. Makefile may define this.
 .define WriteToSRAM ; if defined then text is emitted to SRAM
 .define WriteToScreen ; if defined then text is emitted to the screen
 .define WriteToSDSCDebugConsole ; if defined then text is emitted to the SDSC Debug Console
@@ -6,11 +6,14 @@
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
 ;
+; 2024 (Maxim) 0.19
+; + Fixed build with newer WLA DX
+; + Fixed build with screen output disabled
 ; 2021 (Maxim)
 ; + Fixed slot detection code
 ; + Added TMS9918a compatible mode. The unmodified ROM should now run on an SG-1000 or SC-3000.
- ;  - Press Up on a Master System at startup to force mode 4 (SMS graphics); press Down
- ;    to force mode 2 (TMS9918 text mode); else mode 4 detection is used
+;   - Press Up on a Master System at startup to force mode 4 (SMS graphics); press Down
+;     to force mode 2 (TMS9918 text mode); else mode 4 detection is used
 ; + Updated to build with recent WLA DX
 ; + Added optimised CRC code from asynchronous. Now it is 29% faster!
 ; 2016 (Maxim)
@@ -2449,6 +2452,7 @@ SetVRAMAddress:
 
 .ends
 
+.ifdef WriteToScreen
 .section "Console emulation" free
 
 .define NAME_TABLE_START NameTableAddress | VRAM_WRITE_MASK
@@ -2720,6 +2724,7 @@ _WriteBlanks:
   pop af
   ret
 .ends
+.endif
 
 .ifdef WriteToSRAM
 .ramsection "SRAM writing variables" slot 3
@@ -2771,7 +2776,7 @@ PrintChar_SRAM:
 
 ; SDSC tag and SMS rom header
 .sdsctag \
-  0.18, \
+  0.19, \
   "Z80 Instruction Exerciser", \
   "Based on ZEXALL by Frank Cringle, " \
     "with credit to J.G.Harston\n" \
