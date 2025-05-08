@@ -365,9 +365,9 @@ Done:
 ; Sorted by case count, so fastest go first
 Tests:
 .ifdef UndocumentedFlags
-.dw ld162, ld163, ld166, ld167, ld8imx, ld161, ld164, ld16ix, ld8bd, lda, ldd1, ldd2, ldi1, ldi2, ld165, ld168, ld16im, ld8im, sccf, st8ix3, cplop, ld8ix3, stabd, rotxy, srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, incbc, incde, inchl, incix, inciy, incsp, st8ix1, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, incxh, incxl, incyh, incyl, rotz80, ld8rrx, srz80, incx, rot8080, rldop, alu8r_a, cpd1, cpi1, negop, alu8i, alu8r_b, alu8r_c, alu8r_d, alu8r_e, alu8r_h, alu8r_l, alu8r_hl, alu8rx_ixh, alu8rx_ixl, alu8rx_iyh, alu8rx_iyl, add16, add16x, add16y, bitz80, daaop, adc16, alu8x
-.else
 .dw ld162, ld163, ld166, ld167, ld8imx, ld161, ld164, ld16ix, ld8bd, lda, ldd1, ldd2, ldi1, ldi2, ld165, ld168, ld16im, ld8im, st8ix3, cplop, ld8ix3, stabd, rotxy, sccf, srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, st8ix1, incbc, incde, inchl, incix, inciy, incsp, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, incxh, incxl, incyh, incyl, rotz80, ld8rrx, srz80, rldop, incx, rot8080, alu8r_a, cpd1, cpi1, alu8i, alu8r_b, alu8r_c, alu8r_d, alu8r_e, alu8r_h, alu8r_l, alu8r_hl, alu8rx_ixh, alu8rx_ixl, alu8rx_iyh, alu8rx_iyl, add16, add16x, add16y, bitz80, negop, adc16, daaop, alu8x
+.else
+.dw ld162, ld163, ld166, ld167, ld8imx, ld161, ld164, ld16ix, ld8bd, lda, ldd1, ldd2, ldi1, ldi2, ld165, ld168, ld16im, ld8im, sccf, st8ix3, cplop, ld8ix3, stabd, rotxy, srzx, ld8ix2, st8ix2, ld8ixy, ld8ix1, incbc, incde, inchl, incix, inciy, incsp, st8ix1, bitx, ld8rr, inca, incb, incc, incd, ince, inch, incl, incm, incxh, incxl, incyh, incyl, rotz80, ld8rrx, srz80, incx, rot8080, rldop, alu8r_a, cpd1, cpi1, negop, alu8i, alu8r_b, alu8r_c, alu8r_d, alu8r_e, alu8r_h, alu8r_l, alu8r_hl, alu8rx_ixh, alu8rx_ixl, alu8rx_iyh, alu8rx_iyl, add16, add16x, add16y, bitz80, daaop, adc16, alu8x
 .endif
 .dw 0
 .ends
