@@ -138,7 +138,7 @@ banks 4
   BaseState   instanceof TestCase
   CounterBits instanceof TestCase
   ShifterBits instanceof TestCase
-  ExpectedCRC dsb 4
+  ExpectedCRC dd
   Name        db ; actually a string of unknown length
 .endst
 
@@ -150,7 +150,8 @@ banks 4
 
 .ramsection "Variables" slot 3
   Port3EValue             db
-  padding                 dsb 3
+  PrintOnlyToScreen       db
+  padding                 dsb 2
   Counter                 instanceof Permuter
   Shifter                 instanceof Permuter
   StackPointerSaved       dw      ; Saved sp
@@ -179,6 +180,8 @@ banks 4
 ;                 ||`------ Undocumented
 ;                 |`------- Zero
 ;                 `-------- Sign
+.print "FlagMask = ", HEX FlagMask, "\n"
+
 
 .bank 0 Slot 0
 
@@ -222,7 +225,7 @@ A test case is defined by a descriptor which consists of:
 * the base case,
 * the increment vector,
 * the shift vector,
-* the expected crc,
+* the expected crc(s),
 * a short descriptive message.
 
 The first three parts of the descriptor are vectors corresponding to
@@ -259,6 +262,7 @@ hand using a binary search of the test space.
 Start:
   xor a
   ld (PauseFlag), a
+  ld (PrintOnlyToScreen),a
 
   ; Output initialisation
 .ifdef WriteToScreen
@@ -427,8 +431,11 @@ Tests:
 .asciitable
   map ' ' to '~' = 32 ; Our font mostly covers 7-bit "ASCII"
 .enda
-.macro MessageString
-  .asc \1, STREND
+.macro MessageString args s
+  .asc s, STREND
+  .if s.length >= 21
+  .print "too long: ", s,  "\n"
+  .endif
 .endm
 
 ; We use a macro to store these because they have to be big-endian...
@@ -455,7 +462,7 @@ adc16:
   TestData2   0, %00111000,     0,     0,     0, $f821,     0,     0,        0,   0,     0 ; 10 bits -> 1024 permutations
   TestData2   0,         0,     0,     0,     0, $ffff, $ffff, $ffff, FlagMask,   0, $ffff ; 70 bits ->   71 permutations
   CRCs $f39089a0 $638e3f1e
-  MessageString "<adc|sbc> hl, <bc|de|hl|sp>"
+  MessageString "adc/sbc hl,rr"
 
 ; add hl, <bc|de|hl|sp> (36352 cases)
 ; Opcode:
@@ -467,7 +474,7 @@ add16:
   TestData1 %00110000,     0,     0,     0, $f821,     0,     0,        0,   0,     0 ;  9 bits -> 512 permutations
   TestData1         0,     0,     0,     0, $ffff, $ffff, $ffff, FlagMask,   0, $ffff ; 70 bits ->  71 permutations
   CRCs $1165fc90 $de0ad40e
-  MessageString "add hl, <bc|de|hl|sp>"
+  MessageString "add hl,rr"
 
 ; add ix, <bc|de|ix|sp> (36352 cases)
 ; Opcode:
@@ -479,7 +486,7 @@ add16x:
   TestData2   0, %00110000,     0,     0, $f821,     0,     0,     0,        0,   0,     0 ;  9 bits -> 512 permutations
   TestData2   0,         0,     0,     0, $ffff,     0, $ffff, $ffff, FlagMask,   0, $ffff ; 70 bits ->  71 permutations
   CRCs $c359f7a2 $d6762c69
-  MessageString "add ix, <bc|de|ix|sp>"
+  MessageString "add ix,rr"
 
 ; add iy, <bc|de|iy|sp> (36352 cases)
 ; Opcode:
@@ -491,7 +498,7 @@ add16y:
   TestData2   0, %00110000,     0, $f821,     0,     0,     0,     0,        0,   0,     0 ;  9 bits -> 512 permutations
   TestData2   0,         0,     0, $ffff,     0,     0, $ffff, $ffff, FlagMask,   0, $ffff ; 70 bits ->  71 permutations
   CRCs $5fc828e9 $70deb8b0
-  MessageString "add iy, <bc|de|iy|sp>"
+  MessageString "add iy,rr"
 
 ; aluop a, nn (30720 cases)
 ; Opcodes:
@@ -509,7 +516,7 @@ alu8i:
   TestData2 %00111000,   0,     0,     0,     0,     0,     0,     0,        0, $ff,     0  ; 11 bits -> 2048 permutations
   TestData2         0, $ff,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0  ; 14 bits ->   15 permutations
   CRCs $48799360 $42d6db16
-  MessageString "aluop a, nn"
+  MessageString "aluop a,n"
 
 ; aluop a, <b|c|d|e|h|l|(hl)|a> (229376 cases)
 ; Opcodes:
@@ -529,56 +536,56 @@ alu8r_b: ; (30720 cases)
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                            0,     0, $ff00, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $7f650a22 $aee97b6e
-  MessageString "aluop a, b"
+  MessageString "aluop a,b"
 alu8r_c: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000001, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                            0,     0, $00ff, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $55ddfdc2 $e43830ce
-  MessageString "aluop a, c"
+  MessageString "aluop a,c"
 alu8r_d: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000010, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                            0, $ff00,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $b7145360 $bb297239
-  MessageString "aluop a, d"
+  MessageString "aluop a,d"
 alu8r_e: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000011, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                            0, $00ff,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $babc2329 $e344fd93
-  MessageString "aluop a, e"
+  MessageString "aluop a,e"
 alu8r_h: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000100, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                        $ff00,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $9f2277c2 $2cf27318
-  MessageString "aluop a, h"
+  MessageString "aluop a,h"
 alu8r_l: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000101, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                        $00ff,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $f72e37a6 $dd48e4c9
-  MessageString "aluop a, l"
+  MessageString "aluop a,l"
 alu8r_hl: ; (30720 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000110, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0, $00ff,     0,     0,                            0,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $b2fe080d $f2b6122f
-  MessageString "aluop a, (hl)"
+  MessageString "aluop a,(hl)"
 alu8r_a: ; (14336 cases)
   ;         <-opcode-> <memop>  <iy>   <ix>                         <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 %10000111, $c53e, $573a, $4c4d, MachineStateBeforeTest.memop, $e309, $a666,      $d0, $3b, $adbb
   TestData1 %00111000,     0,     0,     0,                            0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData1         0,     0,     0,     0,                            0,     0,     0, FlagMask,   0,     0 ;  6 bits ->    7 permutations
   CRCs $b51a3dca $0666c711
-  MessageString "aluop a, a"
+  MessageString "aluop a,a"
 
 ; aluop a, <ixh|ixl|iyh|iyl> (122880 cases)
 ; Opcodes:
@@ -596,28 +603,28 @@ alu8rx_ixh: ; (30720 cases)
   TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData2   0,         0,     0,     0, $ff00,     0,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $371ff823 $77e68227
-  MessageString "aluop a, ixh"
+  MessageString "aluop a,ixh"
 alu8rx_ixl: ; (30720 cases)
   ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData2 $dd, %10000101, $d6f7, $c76e, $accf, $2847, $22dd, $c035,      $c5, $38, $234b
   TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData2   0,         0,     0,     0, $00ff,     0,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $7b057fec $ccdc1a30
-  MessageString "aluop a, ixl"
+  MessageString "aluop a,ixl"
 alu8rx_iyh: ; (30720 cases)
   ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData2 $fd, %10000100, $d6f7, $c76e, $accf, $2847, $22dd, $c035,      $c5, $38, $234b
   TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData2   0,         0,     0, $ff00,     0,     0,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $9ee7f6c4 $d9612ebe
-  MessageString "aluop a, iyh"
+  MessageString "aluop a,iyh"
 alu8rx_iyl: ; (30720 cases)
   ;         <---opcode---> <memop>  <iy>   <ix>   <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData2 $fd, %10000101, $d6f7, $c76e, $accf, $2847, $22dd, $c035,      $c5, $38, $234b
   TestData2   0, %00111000,     0,     0,     0,     0,     0,     0,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData2   0,         0,     0, $00ff,     0,     0,     0,     0, FlagMask,   0,     0 ; 14 bits ->   15 permutations
   CRCs $27ec13a6 $3d6a4e44
-  MessageString "aluop a, iyl"
+  MessageString "aluop a,iyl"
 
 ; aluop a, (<ix|iy>+1) (245760 cases)
 ; Opcodes:
@@ -637,7 +644,7 @@ alu8x:
   TestData3 $20, %00111000,  0,     0,                            1,                            1,     0,     0,     0,        0, $ff,     0 ; 14 bits -> 16384 permutations
   TestData3   0,         0,  0, $00ff,                            0,                            0,     0,     0,     0, FlagMask,   0,     0 ; 14 bits ->    15 permutations
   CRCs $2bc2d52d $6c506ef4
-  MessageString "aluop a, (<ix|iy>+1)"
+  MessageString "aluop a,(ix/y+1)"
 
 ; bit n, (<ix|iy>+1) (2304 cases)
 ; Opcode:
@@ -649,7 +656,7 @@ bitx:
   TestData $20,   0,  0, %00111000,     0,                              0,                              0,     0,     0,     0, $53,   0,     0 ; 8 bits -> 256 permutations
   TestData   0,   0,  0,         0, $00ff,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 8 bits ->   9 permutations
   CRCs $55c9ea76 $55c9ea76
-  MessageString "bit n, (<ix|iy>+1)"
+  MessageString "bit n,(ix/y+1)"
 
 ; bit n, <b|c|d|e|h|l|(hl)|a> (50176 cases)
 ; Opcode:
@@ -662,7 +669,7 @@ bitz80:
   TestData2   0, %00111111,     0,     0,     0,                            0,     0,     0, $53,   0,     0 ; 10 bits -> 1024 permutations
   TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff,   0, $ff,     0 ; 48 bits ->   49 permutations
   CRCs $4b37451d $a937a161
-  MessageString "bit n, <b|c|d|e|h|l|(hl)|a>"
+  MessageString "bit n,r/(hl)"
 
 ; cpd<r> (1) (14336 cases)
 ; Opcodes:
@@ -677,7 +684,7 @@ cpd1:
   TestData2   0, $10,     0,     0,     0,                         0,     0, 10,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData2   0,   0,     0,     0,     0,                         0,     0,  0, FlagMask,   0,     0 ;  6 bits ->    7 permutations
   CRCs $6b7eb6bf $1000887f
-  MessageString "cpd<r>"
+  MessageString "cpd/cpdr"
 
 ; cpi<r> (1) (14336 cases)
 ; Opcodes:
@@ -692,7 +699,7 @@ cpi1:
   TestData2 0,   $10,     0,     0,     0,                            0,     0, 10,        0, $ff,     0 ; 11 bits -> 2048 permutations
   TestData2 0,     0,     0,     0,     0,                            0,     0,  0, FlagMask,   0,     0 ;  6 bits ->    7 permutations
   CRCs $74baf310 $67595505
-  MessageString "cpi<r>"
+  MessageString "cpi/cpir"
 
 ; <scf|ccf> (128 cases)
 ; Opcodes:
@@ -704,7 +711,13 @@ sccf:
   TestData1 $08,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 7 bits -> 128 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0,        0,   0,     0 ; 0 bits ->   1 permutation
   CRCs $70b745fb $c6ea3f85
-  MessageString "<scf|ccf>"
+  ;     OK        Fail:
+  ;               MD2:        6d364cf9
+  ;               SMS1:       a26d53a1
+  ;               Emulicious: c6ea3f85
+  ;               Blastem:    0aa774b1
+  ;               ...
+  MessageString "scf/ccf"
 
 ; cpl (256 cases)
 ; Opcode:
@@ -723,9 +736,15 @@ cplop:
 daaop:
   ;     <opcode> <memop> <iy>   <ix>   <hl>   <de>   <bc>       <f>  <a>   <sp>
   TestData1 $27, $2141, $09fa, $1d60, $a559, $8d5b, $9079,      $04, $8e, $299d
-  TestData1 $18,     0,     0,     0,     0,     0,     0, FlagMask, $ff,     0 ; 14 bits -> 16384 permutations
+  TestData1 $18,     0,     0,     0,     0,     0,     0, FlagMask, $ff,     0 ; 16 bits -> 65536 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0,        0,   0,     0 ;  0 bits ->     1 permutation
   CRCs $9b4ba675 $1fa9be4a
+  ;     OK        Fail:
+  ;               SMS2:       1fa9be4a
+  ;               SMS2:       27a2b418 
+  ;               MD2:        259f85d4
+  ;               Emulicious: 1fa9be4a
+  ;               Blastem:    ?
   MessageString "daa"
 
 ; <inc|dec> a (3584 cases)
@@ -739,7 +758,7 @@ inca:
   TestData1 $01,     0,     0,     0,     0,     0,     0,        0, $ff,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $d18815a4 $895cbf57
-  MessageString "<inc|dec> a"
+  MessageString "inc/dec a"
 
 ; <inc|dec> b (3584 cases)
 ; Opcodes:
@@ -752,7 +771,7 @@ incb:
   TestData1 $01,     0,     0,     0,     0,     0, $ff00,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $5f682264 $8842f7a3
-  MessageString "<inc|dec> b"
+  MessageString "inc/dec b"
 
 ; <inc|dec> bc (1792 cases)
 ; Opcodes:
@@ -765,7 +784,7 @@ incbc:
   TestData1 $08,     0,     0,     0,     0,     0, $f821,        0,   0,     0 ; 8 bits -> 256 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $d2ae3bec $7c28865e
-  MessageString "<inc|dec> bc"
+  MessageString "inc/dec bc"
 
 ; <inc|dec> c (3584 cases)
 ; Opcodes:
@@ -778,7 +797,7 @@ incc:
   TestData1 $01,     0,     0,     0,     0,     0, $00ff,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $c284554c $28cab011
-  MessageString "<inc|dec> c"
+  MessageString "inc/dec c"
 
 ; <inc|dec> d (3584 cases)
 ; Opcodes:
@@ -791,7 +810,7 @@ incd:
   TestData1 $01,     0,     0,     0,     0, $ff00,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $4523de10 $e3588b40
-  MessageString "<inc|dec> d"
+  MessageString "inc/dec d"
 
 ; <inc|dec> de (1792 cases)
 ; Opcodes:
@@ -804,7 +823,7 @@ incde:
   TestData1 $08,     0,     0,     0,     0, $f821,     0,        0,   0,     0 ; 8 bits -> 256 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $aec6d42c $c6d64c1f
-  MessageString "<inc|dec> de"
+  MessageString "inc/dec de"
 
 ; <inc|dec> e (3584 cases)
 ; Opcodes:
@@ -817,7 +836,7 @@ ince:
   TestData1 $01,     0,     0,     0,     0, $00ff,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $e175afcc $460ecf92
-  MessageString "<inc|dec> e"
+  MessageString "inc/dec e"
 
 ; <inc|dec> h (3584 cases)
 ; Opcodes:
@@ -830,7 +849,7 @@ inch:
   TestData1 $01,     0,     0,     0, $ff00,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $1ced847d $efa0f9dc
-  MessageString "<inc|dec> h"
+  MessageString "inc/dec h"
 
 ; <inc|dec> hl (1792 cases)
 ; Opcodes:
@@ -843,7 +862,7 @@ inchl:
   TestData1 $08,     0,     0,     0, $f821,     0,     0,        0,   0,     0 ; 8 bits -> 256 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $fc0d6d4a $f489fab6
-  MessageString "<inc|dec> hl"
+  MessageString "inc/dec hl"
 
 ; <inc|dec> ix (1792 cases)
 ; Opcodes:
@@ -856,7 +875,7 @@ incix:
   TestData2   0, $08,     0,     0, $f821,     0,     0,     0,        0,   0,     0 ; 8 bits -> 256 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $a54dbe31 $f1886204
-  MessageString "<inc|dec> ix"
+  MessageString "inc/dec ix"
 
 ; <inc|dec> iy (1792 cases)
 ; Opcodes:
@@ -869,7 +888,7 @@ inciy:
   TestData2   0, $08,     0, $f821,     0,     0,     0,     0,        0,   0,     0 ; 8 bits -> 256 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $505d51a3 $57eb0ff4
-  MessageString "<inc|dec> iy"
+  MessageString "inc/dec iy"
 
 ; <inc|dec> l (3584 cases)
 ; Opcodes:
@@ -882,7 +901,7 @@ incl:
   TestData1 $01,     0,     0,     0, $00ff,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $56cd06f3 $b6538894
-  MessageString "<inc|dec> l"
+  MessageString "inc/dec l"
 
 ; <inc|dec> (hl) (3584 cases)
 ; Opcodes:
@@ -895,7 +914,7 @@ incm:
   TestData1 $01, $00ff,     0,     0,                            0,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData1   0,     0,     0,     0,                            0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $46761d6b $640e3d80
-  MessageString "<inc|dec> (hl)"
+  MessageString "inc/dec (hl)"
 
 ; <inc|dec> sp (1792 cases)
 ; Opcodes:
@@ -908,7 +927,7 @@ incsp:
   TestData1 $08,     0,     0,     0,     0,     0,     0,        0,   0, $f821 ; 8 bits -> 256 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $5dacd527 $cb40b182
-  MessageString "<inc|dec> sp"
+  MessageString "inc/dec sp"
 
 ; <inc|dec> (<ix|iy>+1) (7138 cases)
 incx:
@@ -921,7 +940,7 @@ incx:
   TestData3 $20, $01, 0, $00ff,                              0,                              0,     0,     0,     0,        0,   0,     0 ; 10 bits -> 1024 permutations
   TestData3   0,   0, 0,     0,                              0,                              0,     0,     0,     0, FlagMask,   0,     0 ;  6 bits ->    7 permutations
   CRCs $8897c715 $8d249a60
-  MessageString "<inc|dec> (<ix|iy>+1)"
+  MessageString "inc/dec (ix/y+1)"
 
 ; <inc|dec> ixh (3584 cases)
 ; Opcodes:
@@ -934,7 +953,7 @@ incxh:
   TestData2   0, $01,     0,     0, $ff00,     0,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $cfc8b622 $0f53b47d
-  MessageString "<inc|dec> ixh"
+  MessageString "inc/dec ixh"
 
 ; <inc|dec> ixl (3584 cases)
 ; Opcodes:
@@ -947,7 +966,7 @@ incxl:
   TestData2   0, $01,     0,     0, $00ff,     0,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $bb96e4c1 $1d067578
-  MessageString "<inc|dec> ixl"
+  MessageString "inc/dec ixl"
 
 ; <inc|dec> iyh (3584 cases)
 ; Opcodes:
@@ -960,7 +979,7 @@ incyh:
   TestData2   0, $01,     0, $ff00,     0,     0,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $580724ce $d6ade161
-  MessageString "<inc|dec> iyh"
+  MessageString "inc/dec iyh"
 
 ; <inc|dec> iyl (3584 cases)
 ; Opcodes:
@@ -973,7 +992,7 @@ incyl:
   TestData2   0, $01,     0, $00ff,     0,     0,     0,     0,        0,   0,     0 ; 9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 6 bits ->   7 permutations
   CRCs $29b50d35 $283a9a3d
-  MessageString "<inc|dec> iyl"
+  MessageString "inc/dec iyl"
 
 ; ld <bc|de>, (nnnn) (34 cases)
 ; Opcodes:
@@ -986,7 +1005,7 @@ ld161:
   TestData4_16   0, $10,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  1 bit  ->  2 permutations
   TestData4_16   0,   0,                            0, $ffff,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $4d45a9ac $4d45a9ac
-  MessageString "ld <bc|de>, (nnnn)"
+  MessageString "ld bc/de,(nnnn)"
 
 ; ld hl, (nnnn) (17 cases)
 ; Opcode:
@@ -997,7 +1016,7 @@ ld162:
   TestData3_16   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->  1 permutation
   TestData3_16   0,                            0, $ffff,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $5f972487 $5f972487
-  MessageString "ld hl, (nnnn)"
+  MessageString "ld hl,(nnnn)"
 
 ; ld sp, (nnnn) (17 cases)
 ; Opcode:
@@ -1008,7 +1027,7 @@ ld163:
   TestData4_16   0,   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->  1 permutation
   TestData4_16   0,   0,                            0, $ffff,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $7acea11b $7acea11b
-  MessageString "ld sp, (nnnn)"
+  MessageString "ld sp,(nnnn)"
 
 ; ld <ix|iy>, (nnnn) (34 cases)
 ; Opcode:
@@ -1019,7 +1038,7 @@ ld164:
   TestData4_16 $20,   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  1 bit  ->  2 permutations
   TestData4_16   0,   0,                            0, $ffff,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $858bf16d $858bf16d
-  MessageString "ld <ix|iy>, (nnnn)"
+  MessageString "ld ix/y,(nnnn)"
 
 ; ld (nnnn), <bc|de> (66 cases)
 ; Opcodes:
@@ -1031,7 +1050,7 @@ ld165:
   TestData4_16   0, $10,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  1 bit  ->  2 permutations
   TestData4_16   0,   0,                            0,     0,     0,     0,     0, $ffff, $ffff,   0,   0,     0 ; 32 bits -> 33 permutations
   CRCs $641e8715 $641e8715
-  MessageString "ld (nnnn), <bc|de>"
+  MessageString "ld (nnnn),bc/de"
 
 ; ld (nnnn), hl (17 cases)
 ; Opcode:
@@ -1042,7 +1061,7 @@ ld166:
   TestData3_16   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->  1 permutation
   TestData3_16   0,                            0,     0,     0,     0, $ffff,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $a3608b47 $a3608b47
-  MessageString "ld (nnnn), hl"
+  MessageString "ld (nnnn),hl"
 
 ; ld (nnnn), sp (17 cases)
 ; Opcode:
@@ -1053,7 +1072,7 @@ ld167:
   TestData4_16   0,   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  0 bits ->  1 permutation
   TestData4_16   0,   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0, $ffff ; 16 bits -> 17 permutations
   CRCs $16585fd7 $16585fd7
-  MessageString "ld (nnnn), sp"
+  MessageString "ld (nnnn),sp"
 
 ; ld (nnnn), <ix|iy> (66 cases)
 ; Opcode:
@@ -1064,7 +1083,7 @@ ld168:
   TestData4_16 $20,   0,                            0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  1 bit  ->  2 permutations
   TestData4_16   0,   0,                            0,     0, $ffff, $ffff,     0,     0,     0,   0,   0,     0 ; 32 bits -> 33 permutations
   CRCs $ba102a6b $ba102a6b
-  MessageString "ld (nnnn), <ix|iy>"
+  MessageString "ld (nnnn),<ix|iy>"
 
 ; ld <bc|de|hl|sp>, nnnn (68 cases)
 ; Opcode:
@@ -1076,7 +1095,7 @@ ld16im:
   TestData3_16 %00110000,     0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  2 bits ->  4 permutations
   TestData3_16         0, $ffff,     0,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $de391969 $de391969
-  MessageString "ld <bc|de|hl|sp>, nnnn"
+  MessageString "ld rr,nnnn"
 
 ; ld <ix|iy>, nnnn (34 cases)
 ; Opcode:
@@ -1087,7 +1106,7 @@ ld16ix:
   TestData4_16 $20,   0,     0,     0,     0,     0,     0,     0,     0,   0,   0,     0 ;  1 bit  ->  2 permutations
   TestData4_16   0,   0, $ffff,     0,     0,     0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $227dd525 $227dd525
-  MessageString "ld <ix|iy>, nnnn"
+  MessageString "ld ix/y,nnnn"
 
 ; ld a, <(bc)|(de)> (46 cases)
 ; Opcodes:
@@ -1099,7 +1118,7 @@ ld8bd:
   TestData1 $10,     0,     0,     0,     0,                            0,                            0,        0,   0,     0 ;  1 bit  ->  2 permutations
   TestData1   0, $00ff,     0,     0,     0,                            0,                            0, FlagMask, $ff,     0 ; 22 bits -> 23 permutations
   CRCs $2439f60d $dc37bba6
-  MessageString "ld a, <(bc)|(de)>"
+  MessageString "ld a,(bc/de)"
 
 ; ld <b|c|d|e|h|l|(hl)|a>, nn (72 cases)
 ; Opcode:
@@ -1111,7 +1130,7 @@ ld8im:
   TestData2 $38,   0,     0,     0,     0,                            0,     0,     0,   0,   0,     0 ; 3 bits -> 8 permutations
   TestData2   0, $ff,     0,     0,     0,                            0,     0,     0,   0,   0,     0 ; 8 bits -> 9 permutations
   CRCs $df535f2a $df535f2a
-  MessageString "ld <b|c|d|e|h|l|(hl)|a>, nn"
+  MessageString "ld r/(hl),n"
 
 ; ld (<ix|iy>+1), nn (18 cases)
 ; Opcode:
@@ -1122,7 +1141,7 @@ ld8imx:
   TestData $20,   0, 0,   0,     0,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 1 bit  -> 2 permutations
   TestData   0,   0, 0, $ff,     0,                              0,                              0,     0,     0,     0,   0,   0,     0 ; 8 bits -> 9 permutations
   CRCs $728e38cf $728e38cf
-  MessageString "ld (<ix|iy>+1), nn"
+  MessageString "ld (ix/y+1),nn"
 
 ; ld <b|c|d|e>, (<ix|iy>+1) (1088 cases)
 ; Opcode:
@@ -1135,7 +1154,7 @@ ld8ix1:
   TestData3 $20, %00011000, 1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  6 bits -> 64 permutations
   TestData3   0,         0, 0, $ffff,                            0,                            0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $6db05c44 $6db05c44
-  MessageString "ld <b|c|d|e>, (<ix|iy>+1)"
+  MessageString "ld b/c/d/e,(ix/y+1)"
 
 ; ld <h|l>, (<ix|iy>+1) (544 cases)
 ; Opcode:
@@ -1148,7 +1167,7 @@ ld8ix2:
   TestData3 $20, %00001000, 1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  5 bits -> 32 permutations
   TestData3   0,         0, 0, $ffff,                            0,                            0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $3e094165 $3e094165
-  MessageString "ld <h|l>, (<ix|iy>+1)"
+  MessageString "ld h/l,(ix/y+1)"
 
 ; ld a, (<ix|iy>+1) (272 cases)
 ; Opcode:
@@ -1160,7 +1179,7 @@ ld8ix3:
   TestData3 $20,   0, 1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  4 bits -> 16 permutations
   TestData3   0,   0, 0, $ffff,                            0,                            0,     0,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $5407eb38 $5407eb38
-  MessageString "ld a, (<ix|iy>+1)"
+  MessageString "ld a,(ix/y+1)"
 
 ; ld <ixh|ixl|iyh|iyl>, nn (1024 cases)
 ; Opcodes:
@@ -1172,7 +1191,7 @@ ld8ixy:
   TestData3 $20, $08, $ff,     0,     0,     0,     0,     0,     0,   0,   0,     0  ; 10 bits -> 1024 permutations
   TestData3   0,   0,   0,     0,     0,     0,     0,     0,     0,   0,   0,     0  ;  0 bits ->    1 permutation
   CRCs $567e302a $567e302a
-  MessageString "ld <ixh|ixl|iyh|iyl>, nn"
+  MessageString "ld ix/yh/l,nn"
 
 ; ld <b|c|d|e|h|l|a>, <b|c|d|e|h|l|a> (3520 cases)
 ; Opcode:
@@ -1185,7 +1204,7 @@ ld8rr:
   TestData1 %00111111,     0,     0,     0,                            0,     0,     0,        0,   0,     0 ;  6 bits -> 64 permutations
   TestData1         0, $00ff,     0,     0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits -> 55 permutations
   CRCs $5d1e1c64 $1842d84b
-  MessageString "ld <b|c|d|e|h|l|(hl)|a>, <b|c|d|e|h|l|(hl)|a>"
+  MessageString "ld r/(hl),r/(hl)"
 
 ; ld <b|c|d|e|ixy|a>, <b|c|d|e|ixy|a> (7040 cases)
 ; Opcode:
@@ -1201,7 +1220,7 @@ ld8rrx:
   TestData3 $20, %00111111, 0,     0,                            0,                            0,                            0,     0,     0,        0,   0,     0 ;  7 bits -> 128 permutations
   TestData3   0,         0, 0, $00ff,                            0,                            0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits ->  55 permutations
   CRCs $4c9e4b7b $2bbb0252
-  MessageString "ld <b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>, <b|c|d|e|ixh|ixl|(ix+0)|iyh|iyl|(iy+0)|a>"
+  MessageString "ld r/(ix/y),r/(ix/y)"
 
 ; ld a, (nnnn) / ld (nnnn), a (46 cases)
 ; Opcodes:
@@ -1213,7 +1232,7 @@ lda:
   TestData3_16 $08,                            0,     0,     0,     0,     0,     0,     0,        0,   0,     0 ;  1 bit  ->  2 permutations
   TestData3_16   0,                            0, $00ff,     0,     0,     0,     0,     0, FlagMask, $ff,     0 ; 22 bits -> 23 permutations
   CRCs $c9262de5 $063adbd9
-  MessageString "ld a, (nnnn) / ld (nnnn), a"
+  MessageString "ld a,(n)/ld (n),a"
 
 ; ldd<r> (1) (46 cases)
 ; Opcodes:
@@ -1227,7 +1246,7 @@ ldd1:
   TestData2   0, $10,     0,     0,     0,                        0,                        0, 0,        0,   0,     0 ;  1 bit  ->  2 permutations
   TestData2   0,   0, $ffff,     0,     0,                        0,                        0, 0, FlagMask,   0,     0 ; 22 bits -> 23 permutations
   CRCs $f82148b7 $03a4fb21
-  MessageString "ldd<r> (1)"
+  MessageString "ldd/lddr (1)"
 
 ; ldd<r> (2) (46 cases)
 ; Opcodes:
@@ -1241,7 +1260,7 @@ ldd2:
   TestData2   0, $10,     0,     0,     0,                        0,                        0, 0,        0,   0,     0 ;  1 bit  ->  2 permutations
   TestData2   0,   0, $ffff,     0,     0,                        0,                        0, 0, FlagMask,   0,     0 ; 22 bits -> 23 permutations
   CRCs $e22ab30f $e4e46a92
-  MessageString "ldd<r> (2)"
+  MessageString "ldd/lddr (2)"
 
 ; ldi<r> (1) (46 cases)
 ; Opcodes:
@@ -1255,7 +1274,7 @@ ldi1:
   TestData2   0, $10,     0,     0,     0,                         0,                            0, 0,        0,   0,     0 ;  1 bit  ->  2 permutations
   TestData2   0,   0, $ffff,     0,     0,                         0,                            0, 0, FlagMask,   0,     0 ; 22 bits -> 23 permutations
   CRCs $470098d4 $126e18dc
-  MessageString "ldi<r> (1)"
+  MessageString "ldi/ldir (1)"
 
 ; ldi<r> (2) (46 cases)
 ; Opcodes:
@@ -1269,7 +1288,7 @@ ldi2:
   TestData2   0, $10,     0,     0,     0,                         0,                            0, 0,        0,   0,     0 ;  1 bit  ->  2 permutations
   TestData2   0,   0, $ffff,     0,     0,                         0,                            0, 0, FlagMask,   0,     0 ; 22 bits -> 23 permutations
   CRCs $382fa523 $3456db83
-  MessageString "ldi<r> (2)"
+  MessageString "ldi/ldir (2)"
 
 ; neg (16384 cases)
 ; Opcode:
@@ -1293,7 +1312,7 @@ rldop:
   TestData2   0, $08, $00ff,     0,     0,                            0,     0,     0,        0,   0,     0 ;  9 bits -> 512 permutations
   TestData2   0,   0,     0,     0,     0,                            0,     0,     0, FlagMask, $ff,     0 ; 14 bits ->  15 permutations
   CRCs $f7da9257 $2766bb62
-  MessageString "<rrd|rld>"
+  MessageString "rrd/rld"
 
 ; <rlca|rrca|rla|rra> (7168 cases)
 ; Opcodes:
@@ -1307,7 +1326,7 @@ rot8080:
   TestData1 $18,     0,     0,     0,     0,     0,     0,        0, $ff,     0 ; 10 bits -> 1024 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ;  6 bits ->    7 permutations
   CRCs $251330ae $fa480129
-  MessageString "<rlca|rrca|rla|rra>"
+  MessageString "rlca/rrca/rla/rra"
 
 ; shift/rotate (<ix|iy>+1) (448 cases)
 ; Opcodes:
@@ -1326,7 +1345,7 @@ rotxy:
   TestData $20,   0, 0, $38,     0,                              0,                              0,     0,     0,     0, $80,   0,     0 ;  5 bits -> 32 permutations
   TestData   0,   0, 0,   0, $00ff,                              0,                              0,     0,     0,     0, $57,   0,     0 ; 13 bits -> 14 permutations
   CRCs $b40e85cb $b4347c81
-  MessageString "shf/rot (<ix|iy>+1)"
+  MessageString "shf/rot (ix/y+1)"
 
 ; shift/rotate <b|c|d|e|h|l|(hl)|a> (6912 cases)
 ; Opcodes:
@@ -1345,7 +1364,7 @@ rotz80:
   TestData2   0, %00111111,     0,     0,     0,                            0,     0,     0, $80,   0,     0 ;  7 bits -> 128 permutations
   TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff, $57, $ff,     0 ; 53 bits ->  54 permutations
   CRCs $ee0c828b $150c42ed
-  MessageString "<rlc|rrc|rl|rr|sla|sra|sll|srl> <b|c|d|e|h|l|(hl)|a>"
+  MessageString "shift/rotate r/(hl)"
 
 ; <set|res> n, <b|c|d|e|h|l|(hl)|a> (7040 cases)
 ; Opcodes:
@@ -1358,7 +1377,7 @@ srz80:
   TestData2   0, %01111111,     0,     0,     0,                            0,     0,     0,        0,   0,     0 ;  7 bits -> 128 permutations
   TestData2   0,         0, $00ff,     0,     0,                            0, $ffff, $ffff, FlagMask, $ff,     0 ; 54 bits ->  55 permutations
   CRCs $90aa19cd $fdacf700
-  MessageString "<set|res> n, <b|c|d|e|h|l|(hl)|a>"
+  MessageString "set/res n,r/(hl)"
 
 ; <set|res> n, (<ix|iy>+1) (480 cases)
 ; Opcodes:
@@ -1370,7 +1389,7 @@ srzx:
   TestData $20,   0,  0, %01111000,     0,                              0,                              0,     0,     0,     0,        0,   0,     0 ;  5 bits -> 32 permutations
   TestData   0,   0,  0,         0, $00ff,                              0,                              0,     0,     0,     0, FlagMask,   0,     0 ; 14 bits -> 15 permutations
   CRCs $177e3cb8 $dbf471a8
-  MessageString "<set|res> n, (<ix|iy>+1)"
+  MessageString "set/res n,(ix/y+1)"
 
 ; ld (<ix|iy>+1), <b|c|d|e> (2112 cases)
 ; Opcode:
@@ -1384,7 +1403,7 @@ st8ix1:
   TestData3 $20, %00000011, +1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  6 bits -> 64 permutations
   TestData3   0,         0,  0,     0,                            0,                            0,     0, $ffff, $ffff,   0,   0,     0 ; 32 bits -> 33 permutations
   CRCs $24c66b95 $24c66b95
-  MessageString "ld (<ix|iy>+1), <b|c|d|e>"
+  MessageString "ld (ix/y+1),b/c/d/e"
 
 ; ld (<ix|iy>+1), <h|l> (544 cases)
 ; Opcode:
@@ -1398,7 +1417,7 @@ st8ix2:
   TestData3 $20, %00000001, +1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ;  5 bits -> 32 permutations
   TestData3   0,         0,  0,     0,                            0,                            0, $ffff,     0,     0,   0,   0,     0 ; 16 bits -> 17 permutations
   CRCs $b9b5243c $b9b5243c
-  MessageString "ld (<ix|iy>+1), <h|l>"
+  MessageString "ld (ix/y+1),h/l"
 
 ; ld (<ix|iy>+1), a (144 cases)
 ; Opcode:
@@ -1411,7 +1430,7 @@ st8ix3:
   TestData3 $20,   0, +1,     0,                            1,                            1,     0,     0,     0,   0,   0,     0 ; 4 bits -> 16 permutations
   TestData3   0,   0,  0,     0,                            0,                            0,     0,     0,     0,   0, $ff,     0 ; 8 bits ->  9 permutations
   CRCs $51c0f862 $51c0f862
-  MessageString "ld (<ix|iy>+1), a"
+  MessageString "ld (ix/y+1),a"
 
 ; ld (<bc|de>), a (100 cases)
 ; Opcodes:
@@ -1426,7 +1445,7 @@ stabd:
   TestData1 $18,     0,     0,     0,     0,                            0,                              0,   0,   0,     0 ;  4 bits ->  4 permutations
   TestData1   0, $ffff,     0,     0,     0,                            0,                              0,   0, $ff,     0 ; 25 bits -> 25 permutations
   CRCs $257d7a11 $257d7a11
-  MessageString "ld (<bc|de>), a"
+  MessageString "ld (bc/de),a"
 .ends
 
 .section "Test runner" free
@@ -1435,7 +1454,7 @@ StartTest:
   push hl
 .ifdef WriteToScreen
     ld a, -1
-    ld (SlashCounter), a
+    ld (ProgressCounter), a
 .endif
     ld a, (hl)  ; get pointer to test
     inc hl
@@ -1471,7 +1490,52 @@ StartTest:
       call OutputText  ; show Test name
       ld a, ' '
       call PrintChar
+.ifdef WriteToScreen      
+      ; Show progress placeholder
+      ; We want to print this without using the console routines,
+      ; so it's screen-only.
+    pop hl ; Get pointer back
+    push hl
+      call ComputeTestCount
+      ex de, hl ; dave in de
+      ; Preserve the console state so we can print over the numbers
+      ld hl, (VRAMAddress)
+      push hl
+        ld a, (CursorX)
+        push af
+          ld a,1
+          ld (PrintOnlyToScreen), a
+          ld a, l
+          and %11000000 ; Mask to row
+          add 64-20 ; Right side
+          ld l, a
+          ld (VRAMAddress), hl
+          ld (VRAMAddressForCounter), hl
+          call SetVRAMAddress
+          xor a
+          ld (CursorX), a
+          call PrintByte
+          xor a
+          call PrintByte
+          ld a, '/'
+          call PrintChar
+          ld a, d
+          call PrintByte
+          ld a, e
+          call PrintByte
+          ld a, ' '
+          call PrintChar
+          xor a
+          ld (PrintOnlyToScreen), a
+        pop af
+        ld (CursorX), a
+      pop hl
+      ld (VRAMAddress), hl      
+.endif
+      
       call InitialiseCRC
+      ld hl, 0
+      ld (CaseCount), hl
 
 .define HALT_OPCODE $76
 
@@ -1922,15 +1986,24 @@ OutputText:
 
 PrintChar:
   push hl
-.ifdef WriteToSDSCDebugConsole
-    call PrintChar_SDSC
-.endif
 .ifdef WriteToScreen
     call PrintChar_SMS
+.endif
+    push af
+      ld a, (PrintOnlyToScreen)
+      or a
+      jr nz, +
+    pop af
+.ifdef WriteToSDSCDebugConsole
+    call PrintChar_SDSC
 .endif
 .ifdef WriteToSRAM
     call PrintChar_SRAM
 .endif
+  pop hl
+  ret
+
++:  pop af
   pop hl
   ret
 
@@ -2140,10 +2213,12 @@ PrintChar_SDSC:
 .ramsection "SMS drawing routines variables" slot 3
   CursorX      db ; X coordinate of cursor
   VRAMAddress  dw ; VRAM address, pre-masked as a write command
+  VRAMAddressForCounter dw
   Scroll       db ; Current scrolling offset
   ScrollFlag   db ; Zero before we start scrolling, then 1
-  SlashCounter db ; Counter for drawing slashes animation
+  ProgressCounter db ; Counter for progress updates
   NewlineAdded db ; Flag for handling inserted newlines before newlines
+  CaseCount    dw ; Number of cases computed so far (divided by 64)
 .ends
 .endif
 
@@ -2469,49 +2544,148 @@ InitCursor:
   ld (ScrollFlag), a
   ret
 
+ComputeTestCount:
+    ; Compute case count
+    ; The test will count through all bits in CounterBits
+    ; and for each it will shift a bit through ShifterBits.
+    ; This means we will run through 
+    ; 2^popcount(CounterBits)*(popcount(ShifterBits)+1)
+    ; permutations for each test.
+    ; The indicator increments every 64 permutations, so we want calculate
+    ; 2^popcount(CounterBits)*(popcount(ShifterBits)+1)/64
+    ; The highest value we have is 18(?) counter bits and 14(?) shifter bits, 
+    ; which gives an intermediate value that is bigger than 16 bits.
+    ; TODO: this calculation is wrong! Need to figure out the truth...
+    
+    ld de, Test.CounterBits
+    add hl, de
+    call _GetPopCount
+    add a, a
+    ld e, a ; save here, doubled. _GetPopCount does not touch e.
+    call _GetPopCount
+    inc a
+    ld b, a ; save here
+    
+    ; Compute 2^e
+    ; We want to divide by 64 later so if it's >6, we shift in advance
+    ; to keep things inside 16 bits later (hopefully).
+    ld a, e
+    sub 12
+    jr c, +
+    ld e, a
++:  push af
+      ; Compute 2^(e/2)
+      ld hl, _powersOfTwo
+      ld d, 0
+      add hl, de
+      ld a, (hl)
+      inc hl
+      ld h, (hl)
+      ld l, a
+      ; Now multiply by b. We assume it is small so we just repeatedly add.
+      ex de, hl
+      ld hl, 0
+-:    add hl, de
+      djnz -
+    pop af
+    ; Now check if we need to divide by 64 at the end
+    ret nc
+    ; We want to round up, do 64 -> 1, 65 -> 2
+    ; Check if there's anything in the low 6 bits
+    ld a, l
+    .repeat 6
+    srl h
+    rr l
+    .endr
+    ; If the low 6 bits of a have anything in, increment
+    and 63
+    jr z, +
+    inc hl
++:  ; We might have run out of bits, but we don't want to show 0
+    ld a, h
+    or l
+    ret nz
+    inc hl
+    ret
+
+_powersOfTwo:
+.dw 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16385, 32768
+      
+_GetPopCount:
+  ld a, 0 ; accumulate to here
+  ld c, _sizeof_TestCase
+--:
+  ld d, (hl) ; data in here
+  inc hl
+  ld b, 8
+-:srl d ; Shift bit out of d
+  adc a, 0 ; Add to a if set
+  djnz -
+  dec c
+  jr nz, --
+  ret
+
 ; Code to print slash between executions
+; Only outputs to screen
 UpdateProgressIndicator:
   ; Increment the counter
-  ld a, (SlashCounter)
+  ld a, (ProgressCounter)
   inc a
-  ld (SlashCounter), a
+  ld (ProgressCounter), a
 
-  and %00111111
+  and %00111111 ; Update every 64 cases
   ret nz
-  ld a, (SlashCounter)
+  
+  ld hl, (CaseCount)
+  inc hl
+  ld (CaseCount), hl
+  
+  ld a, (ProgressCounter)
   rla
   rla
   rla
   and %00000011
 
-+:push af
+  push af
   push bc
   push hl
-    ld hl, (VRAMAddress)
+    ld hl, (VRAMAddressForCounter)
     call SetVRAMAddress
 
-    ; Print the char (but don't move the cursor on)
-    ld hl, _chars
-    add a, l
-    ld l, a
-    adc a, h
-    sub l
-    ld h, a
-    ld a, (hl)
+    ; Print the case count
     ld b, 0
     ld c, VDP_DATA
-    out (c), a     ; Output the character
-    ; Waste 14 cycles -> 26 cycles between writes
-    add a, 0
-    add a, 0
-    out (c), b
+    ld hl, (CaseCount)
+    ld a, h
+    .repeat 4
+    rrca
+    .endr
+    call _nibble
+    ld a, h
+    call _nibble
+    ld a, l
+    .repeat 4
+    rrca
+    .endr
+    call _nibble
+    ld a, l
+    call _nibble
   pop hl
   pop bc
   pop af
   ret
 
-_chars:
-  .asc "/-\|"
+_nibble:
+  and $0f
+  cp 10
+  jp c, +
+  add a, 'a'-'9'-1
++:add a, '0'
+  out (c), a
+  add a, 0
+  add a, 0
+  out (c), b
+  ret
 
 ; Code to print a character on the screen. Does stuff like handle
 ; line feeds, scrolling, etc.
