@@ -708,11 +708,14 @@ sccf:
   TestData1 $08,     0,     0,     0,     0,     0,     0, FlagMask,   0,     0 ; 7/9 bits -> 128/512 permutations
   TestData1   0,     0,     0,     0,     0,     0,     0,        0,   0,     0 ;   0 bits ->       1 permutation
   CRCs $70b745fb $c6ea3f85
+  ; Note that SCF/CCF behaviour varies by CPU!
+  ; e.g. see 
   ;     OK        Fail:
-  ;               MD2:        6d364cf9
-  ;               SMS1:       a26d53a1
-  ;               Emulicious: c6ea3f85
-  ;               Blastem:    0aa774b1
+  ;               MD2:        6d364cf9 - ?
+  ;               SMS1:       a26d53a1 - NEC CPU - https://youtu.be/3wp3PawtMdE?t=428
+  ;               SMS2:       c6ea3f85 -  
+  ;               Emulicious: c6ea3f85 -
+  ;               Blastem:    0aa774b1 - XF behaviour difference
   ;               ...
   MessageString "scf/ccf"
 
