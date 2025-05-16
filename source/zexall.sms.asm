@@ -9,6 +9,12 @@
 ; 2025 (Maxim) 0.20
 ; + Added a progress counter for each test
 ; + Fixed daa test which covered other opcodes unnecessarily
+; + Fixed scf/ccf test to always ignore undocumented flags, as they are not consistent between
+;   Z80 CPUs.
+; + Added pre-test checking which undocumented flags are set by scf/ccf in different scenarios.
+;   This is informational only, there is no pass/fail condition. Values other than 0000 and 1fff
+;   indicate inconsistency/instability in the results.
+; + Added optimised CRC code from z80test, making it a bit faster again.
 ; 2024 (Maxim) 0.19
 ; + Fixed build with newer WLA DX
 ; + Fixed build with screen output disabled
@@ -410,7 +416,7 @@ sccfTest:
   ld bc, _sizeof_sccfCounters
   ldir
 
-  ld bc, $1000 ; Number of rounds to run
+  ld bc, $1fff ; Number of rounds to run
 
 -:ld hl, sccfCounters     ; Set BC to the address of the results array.
 
@@ -2108,53 +2114,52 @@ TestCode:
 
     ; Update CRC - speed optimised version
     ; Based on code by asynchronous: https://www.smspower.org/forums/18523-BitBangingAndCartridgeDumping
+    ; Later changed based on z80test: https://github.com/raxoft/z80test
     ld hl, MachineStateAfterTest
     ld b, _sizeof_MachineState
-    ; get current CRC into d'e'b'c'
+    ; get current CRC into b'c'd'e'
     exx
       ld hl, CRCValue
       push hl ; for later
-      ld d,(hl)
-      inc hl
-      ld e,(hl)
-      inc hl
       ld b,(hl)
       inc hl
       ld c,(hl)
+      inc hl
+      ld d,(hl)
+      inc hl
+      ld e,(hl)
     exx
 -:  ld a,(hl)     ; Get the next byte to be CRC'ed
     exx
-      xor c       ; XOR the byte with the LSB of the CRC32
-      ld l, a     ; generate the LUT pointer
-      ld h, (>CRCLookupTable >> 2) ; MSB of LUT >> 2 NOTE! LUT base address must be on a 1KB boundary e.g. $C400
-      add hl, hl
-      add hl, hl
-      ld a, b     ; XOR the LUT with the CRC >> 8
-      xor (hl)
-      ld c, a
-      inc hl
-      ld a, e
-      xor (hl)
-      ld b, a
-      inc hl
-      ld a, d
-      xor (hl)
+      xor e
+      ld l, a
+      ld h, >crctable
+      ld a, (hl)
+      xor d
       ld e, a
-      inc hl
-      ld d, (hl)  ; And shift the MSB into d
+      inc h
+      ld a, (hl)
+      xor c
+      ld d, a
+      inc h
+      ld a, (hl)
+      xor b
+      ld c, a
+      inc h
+      ld b, (hl)
     exx
     inc hl
     djnz -
     exx
       ; Save intermediate result in RAM
       pop hl ; CRCValue
-      ld (hl), d
-      inc hl
-      ld (hl), e
-      inc hl
       ld (hl), b
       inc hl
       ld (hl), c
+      inc hl
+      ld (hl), d
+      inc hl
+      ld (hl), e
     exx
   pop hl
   pop de
@@ -2323,41 +2328,13 @@ InitialiseCRC:
 .ends
 
 
-.section "CRC lookup table" align 1024
-CRCLookupTable:
-; These are all stored little-endian
-.dd $00000000 $77073096 $ee0e612c $990951ba $076dc419 $706af48f $e963a535 $9e6495a3
-.dd $0edb8832 $79dcb8a4 $e0d5e91e $97d2d988 $09b64c2b $7eb17cbd $e7b82d07 $90bf1d91
-.dd $1db71064 $6ab020f2 $f3b97148 $84be41de $1adad47d $6ddde4eb $f4d4b551 $83d385c7
-.dd $136c9856 $646ba8c0 $fd62f97a $8a65c9ec $14015c4f $63066cd9 $fa0f3d63 $8d080df5
-.dd $3b6e20c8 $4c69105e $d56041e4 $a2677172 $3c03e4d1 $4b04d447 $d20d85fd $a50ab56b
-.dd $35b5a8fa $42b2986c $dbbbc9d6 $acbcf940 $32d86ce3 $45df5c75 $dcd60dcf $abd13d59
-.dd $26d930ac $51de003a $c8d75180 $bfd06116 $21b4f4b5 $56b3c423 $cfba9599 $b8bda50f
-.dd $2802b89e $5f058808 $c60cd9b2 $b10be924 $2f6f7c87 $58684c11 $c1611dab $b6662d3d
-.dd $76dc4190 $01db7106 $98d220bc $efd5102a $71b18589 $06b6b51f $9fbfe4a5 $e8b8d433
-.dd $7807c9a2 $0f00f934 $9609a88e $e10e9818 $7f6a0dbb $086d3d2d $91646c97 $e6635c01
-.dd $6b6b51f4 $1c6c6162 $856530d8 $f262004e $6c0695ed $1b01a57b $8208f4c1 $f50fc457
-.dd $65b0d9c6 $12b7e950 $8bbeb8ea $fcb9887c $62dd1ddf $15da2d49 $8cd37cf3 $fbd44c65
-.dd $4db26158 $3ab551ce $a3bc0074 $d4bb30e2 $4adfa541 $3dd895d7 $a4d1c46d $d3d6f4fb
-.dd $4369e96a $346ed9fc $ad678846 $da60b8d0 $44042d73 $33031de5 $aa0a4c5f $dd0d7cc9
-.dd $5005713c $270241aa $be0b1010 $c90c2086 $5768b525 $206f85b3 $b966d409 $ce61e49f
-.dd $5edef90e $29d9c998 $b0d09822 $c7d7a8b4 $59b33d17 $2eb40d81 $b7bd5c3b $c0ba6cad
-.dd $edb88320 $9abfb3b6 $03b6e20c $74b1d29a $ead54739 $9dd277af $04db2615 $73dc1683
-.dd $e3630b12 $94643b84 $0d6d6a3e $7a6a5aa8 $e40ecf0b $9309ff9d $0a00ae27 $7d079eb1
-.dd $f00f9344 $8708a3d2 $1e01f268 $6906c2fe $f762575d $806567cb $196c3671 $6e6b06e7
-.dd $fed41b76 $89d32be0 $10da7a5a $67dd4acc $f9b9df6f $8ebeeff9 $17b7be43 $60b08ed5
-.dd $d6d6a3e8 $a1d1937e $38d8c2c4 $4fdff252 $d1bb67f1 $a6bc5767 $3fb506dd $48b2364b
-.dd $d80d2bda $af0a1b4c $36034af6 $41047a60 $df60efc3 $a867df55 $316e8eef $4669be79
-.dd $cb61b38c $bc66831a $256fd2a0 $5268e236 $cc0c7795 $bb0b4703 $220216b9 $5505262f
-.dd $c5ba3bbe $b2bd0b28 $2bb45a92 $5cb36a04 $c2d7ffa7 $b5d0cf31 $2cd99e8b $5bdeae1d
-.dd $9b64c2b0 $ec63f226 $756aa39c $026d930a $9c0906a9 $eb0e363f $72076785 $05005713
-.dd $95bf4a82 $e2b87a14 $7bb12bae $0cb61b38 $92d28e9b $e5d5be0d $7cdcefb7 $0bdbdf21
-.dd $86d3d2d4 $f1d4e242 $68ddb3f8 $1fda836e $81be16cd $f6b9265b $6fb077e1 $18b74777
-.dd $88085ae6 $ff0f6a70 $66063bca $11010b5c $8f659eff $f862ae69 $616bffd3 $166ccf45
-.dd $a00ae278 $d70dd2ee $4e048354 $3903b3c2 $a7672661 $d06016f7 $4969474d $3e6e77db
-.dd $aed16a4a $d9d65adc $40df0b66 $37d83bf0 $a9bcae53 $debb9ec5 $47b2cf7f $30b5ffe9
-.dd $bdbdf21c $cabac28a $53b39330 $24b4a3a6 $bad03605 $cdd70693 $54de5729 $23d967bf
-.dd $b3667a2e $c4614ab8 $5d681b02 $2a6f2b94 $b40bbe37 $c30c8ea1 $5a05df1b $2d02ef8d
+.section "CRC lookup table" align 256
+crctable:
+; This is the normal CRC lookup table, except it is deinterleaved by 4: the first 256 bytes are the first (most significant) byte of each value, the next 256 are the second, etc. This allows faster lookup.
+.db $00 $96 $2c $ba $19 $8f $35 $a3 $32 $a4 $1e $88 $2b $bd $07 $91 $64 $f2 $48 $de $7d $eb $51 $c7 $56 $c0 $7a $ec $4f $d9 $63 $f5 $c8 $5e $e4 $72 $d1 $47 $fd $6b $fa $6c $d6 $40 $e3 $75 $cf $59 $ac $3a $80 $16 $b5 $23 $99 $0f $9e $08 $b2 $24 $87 $11 $ab $3d $90 $06 $bc $2a $89 $1f $a5 $33 $a2 $34 $8e $18 $bb $2d $97 $01 $f4 $62 $d8 $4e $ed $7b $c1 $57 $c6 $50 $ea $7c $df $49 $f3 $65 $58 $ce $74 $e2 $41 $d7 $6d $fb $6a $fc $46 $d0 $73 $e5 $5f $c9 $3c $aa $10 $86 $25 $b3 $09 $9f $0e $98 $22 $b4 $17 $81 $3b $ad $20 $b6 $0c $9a $39 $af $15 $83 $12 $84 $3e $a8 $0b $9d $27 $b1 $44 $d2 $68 $fe $5d $cb $71 $e7 $76 $e0 $5a $cc $6f $f9 $43 $d5 $e8 $7e $c4 $52 $f1 $67 $dd $4b $da $4c $f6 $60 $c3 $55 $ef $79 $8c $1a $a0 $36 $95 $03 $b9 $2f $be $28 $92 $04 $a7 $31 $8b $1d $b0 $26 $9c $0a $a9 $3f $85 $13 $82 $14 $ae $38 $9b $0d $b7 $21 $d4 $42 $f8 $6e $cd $5b $e1 $77 $e6 $70 $ca $5c $ff $69 $d3 $45 $78 $ee $54 $c2 $61 $f7 $4d $db $4a $dc $66 $f0 $53 $c5 $7f $e9 $1c $8a $30 $a6 $05 $93 $29 $bf $2e $b8 $02 $94 $37 $a1 $1b $8d
+.db $00 $30 $61 $51 $c4 $f4 $a5 $95 $88 $b8 $e9 $d9 $4c $7c $2d $1d $10 $20 $71 $41 $d4 $e4 $b5 $85 $98 $a8 $f9 $c9 $5c $6c $3d $0d $20 $10 $41 $71 $e4 $d4 $85 $b5 $a8 $98 $c9 $f9 $6c $5c $0d $3d $30 $00 $51 $61 $f4 $c4 $95 $a5 $b8 $88 $d9 $e9 $7c $4c $1d $2d $41 $71 $20 $10 $85 $b5 $e4 $d4 $c9 $f9 $a8 $98 $0d $3d $6c $5c $51 $61 $30 $00 $95 $a5 $f4 $c4 $d9 $e9 $b8 $88 $1d $2d $7c $4c $61 $51 $00 $30 $a5 $95 $c4 $f4 $e9 $d9 $88 $b8 $2d $1d $4c $7c $71 $41 $10 $20 $b5 $85 $d4 $e4 $f9 $c9 $98 $a8 $3d $0d $5c $6c $83 $b3 $e2 $d2 $47 $77 $26 $16 $0b $3b $6a $5a $cf $ff $ae $9e $93 $a3 $f2 $c2 $57 $67 $36 $06 $1b $2b $7a $4a $df $ef $be $8e $a3 $93 $c2 $f2 $67 $57 $06 $36 $2b $1b $4a $7a $ef $df $8e $be $b3 $83 $d2 $e2 $77 $47 $16 $26 $3b $0b $5a $6a $ff $cf $9e $ae $c2 $f2 $a3 $93 $06 $36 $67 $57 $4a $7a $2b $1b $8e $be $ef $df $d2 $e2 $b3 $83 $16 $26 $77 $47 $5a $6a $3b $0b $9e $ae $ff $cf $e2 $d2 $83 $b3 $26 $16 $47 $77 $6a $5a $0b $3b $ae $9e $cf $ff $f2 $c2 $93 $a3 $36 $06 $57 $67 $7a $4a $1b $2b $be $8e $df $ef
+.db $00 $07 $0e $09 $6d $6a $63 $64 $db $dc $d5 $d2 $b6 $b1 $b8 $bf $b7 $b0 $b9 $be $da $dd $d4 $d3 $6c $6b $62 $65 $01 $06 $0f $08 $6e $69 $60 $67 $03 $04 $0d $0a $b5 $b2 $bb $bc $d8 $df $d6 $d1 $d9 $de $d7 $d0 $b4 $b3 $ba $bd $02 $05 $0c $0b $6f $68 $61 $66 $dc $db $d2 $d5 $b1 $b6 $bf $b8 $07 $00 $09 $0e $6a $6d $64 $63 $6b $6c $65 $62 $06 $01 $08 $0f $b0 $b7 $be $b9 $dd $da $d3 $d4 $b2 $b5 $bc $bb $df $d8 $d1 $d6 $69 $6e $67 $60 $04 $03 $0a $0d $05 $02 $0b $0c $68 $6f $66 $61 $de $d9 $d0 $d7 $b3 $b4 $bd $ba $b8 $bf $b6 $b1 $d5 $d2 $db $dc $63 $64 $6d $6a $0e $09 $00 $07 $0f $08 $01 $06 $62 $65 $6c $6b $d4 $d3 $da $dd $b9 $be $b7 $b0 $d6 $d1 $d8 $df $bb $bc $b5 $b2 $0d $0a $03 $04 $60 $67 $6e $69 $61 $66 $6f $68 $0c $0b $02 $05 $ba $bd $b4 $b3 $d7 $d0 $d9 $de $64 $63 $6a $6d $09 $0e $07 $00 $bf $b8 $b1 $b6 $d2 $d5 $dc $db $d3 $d4 $dd $da $be $b9 $b0 $b7 $08 $0f $06 $01 $65 $62 $6b $6c $0a $0d $04 $03 $67 $60 $69 $6e $d1 $d6 $df $d8 $bc $bb $b2 $b5 $bd $ba $b3 $b4 $d0 $d7 $de $d9 $66 $61 $68 $6f $0b $0c $05 $02
+.db $00 $77 $ee $99 $07 $70 $e9 $9e $0e $79 $e0 $97 $09 $7e $e7 $90 $1d $6a $f3 $84 $1a $6d $f4 $83 $13 $64 $fd $8a $14 $63 $fa $8d $3b $4c $d5 $a2 $3c $4b $d2 $a5 $35 $42 $db $ac $32 $45 $dc $ab $26 $51 $c8 $bf $21 $56 $cf $b8 $28 $5f $c6 $b1 $2f $58 $c1 $b6 $76 $01 $98 $ef $71 $06 $9f $e8 $78 $0f $96 $e1 $7f $08 $91 $e6 $6b $1c $85 $f2 $6c $1b $82 $f5 $65 $12 $8b $fc $62 $15 $8c $fb $4d $3a $a3 $d4 $4a $3d $a4 $d3 $43 $34 $ad $da $44 $33 $aa $dd $50 $27 $be $c9 $57 $20 $b9 $ce $5e $29 $b0 $c7 $59 $2e $b7 $c0 $ed $9a $03 $74 $ea $9d $04 $73 $e3 $94 $0d $7a $e4 $93 $0a $7d $f0 $87 $1e $69 $f7 $80 $19 $6e $fe $89 $10 $67 $f9 $8e $17 $60 $d6 $a1 $38 $4f $d1 $a6 $3f $48 $d8 $af $36 $41 $df $a8 $31 $46 $cb $bc $25 $52 $cc $bb $22 $55 $c5 $b2 $2b $5c $c2 $b5 $2c $5b $9b $ec $75 $02 $9c $eb $72 $05 $95 $e2 $7b $0c $92 $e5 $7c $0b $86 $f1 $68 $1f $81 $f6 $6f $18 $88 $ff $66 $11 $8f $f8 $61 $16 $a0 $d7 $4e $39 $a7 $d0 $49 $3e $ae $d9 $40 $37 $a9 $de $47 $30 $bd $ca $53 $24 $ba $cd $54 $23 $b3 $c4 $5d $2a $b4 $c3 $5a $2d
 .ends
 
 .section "SDSC console" free
@@ -3198,7 +3175,7 @@ PrintChar_SRAM:
 ; SDSC tag and SMS rom header
 .sdsctag \
   0.20, \
-  "Z80 Instruction Exerciser beta", \
+  "Z80 Instruction Exerciser", \
   "Based on ZEXALL by Frank Cringle, " \
     "with credit to J.G.Harston\n" \
     "See https://www.smspower.org/Homebrew/ZEXALL-SMS\n" \

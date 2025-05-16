@@ -63,3 +63,31 @@ settings.
 
 Fonts used are https://damieng.com/typography/zx-origins/envious for mode 2
 and https://damieng.com/typography/zx-origins/zx-eurostile for mode 4.
+
+=============================
+
+2025/06/16
+
+Version 0.20
+
+This version solves a couple of long-standing issues caused by inconsistency 
+between Z80 CPUs, specifically the undocumented flags' state after the `scf`
+and `ccf` opcodes. All tests should now pass on "normal" Z80s seen in Sega
+8-bit and 16-bit systems.
+
+Because this was achieved by ignoring these flags in this scenario, an 
+additional pre-test was added which checks the flags after each of `scf` and 
+`ccf`, with different preconditions regarding the contents of register `a`
+and the last ALU operation's flags result. Each is run $1fff times, and the 
+screen shows the count of how many times each flag was set; it is expected 
+that:
+
+1. The numbers are usually all either 0 or 1fff - where any other value is seen, it
+   indicates that the flag value is not stable. This has been observed on
+   Sega Mark III (with a Zilog CPU) and Sega Genesis 2 (with a Sega 315-5676 
+   Z80 clone, probably made by NEC).
+2. The pattern of which are 0 and which are 1fff is stable for a given CPU
+   type, but varies by CPU type. At least four patterns are known for Sega
+   systems.
+
+Finally, the CRC computing algorithm was improved so the tests run a bit faster.
