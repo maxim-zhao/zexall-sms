@@ -91,3 +91,12 @@ that:
    systems.
 
 Finally, the CRC computing algorithm was improved so the tests run a bit faster.
+
+=============================
+
+2025/06/16
+
+Version 0.21
+
+This version adds support for the Emulicious/BGB debug console, which is 
+enabled by default as it is harmless when not implemented.

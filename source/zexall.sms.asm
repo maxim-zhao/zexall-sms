@@ -2,10 +2,13 @@
 .define WriteToSRAM ; if defined then text is emitted to SRAM
 .define WriteToScreen ; if defined then text is emitted to the screen
 .define WriteToSDSCDebugConsole ; if defined then text is emitted to the SDSC Debug Console
+.define WriteToEmuliciousDebugConsole ; if defined then text is emitted to the Emulicious/BGB Debug Console
 
 ; zexall.asm - Z80 instruction set exerciser
 ; Copyright (C) 1994  Frank D. Cringle
 ;
+; 2025 (Maxim) 0.21
+; + Added support for BGB/Emulicious debug console
 ; 2025 (Maxim) 0.20
 ; + Added a progress counter for each test
 ; + Fixed daa test which covered other opcodes unnecessarily
@@ -162,7 +165,7 @@ banks 4
   Port3EValue             db
   PrintOnlyToScreen       db
   FlagsMaskForTest        db
-  padding                 dsb 1
+  EmuliciousConsoleChar   db
   Counter                 instanceof Permuter
   Shifter                 instanceof Permuter
   StackPointerSaved       dw      ; Saved sp
@@ -322,6 +325,11 @@ Start:
 
 .ifdef WriteToSDSCDebugConsole
   ld de, Message_SDSCMode
+  call OutputText
+.endif
+
+.ifdef WriteToEmuliciousDebugConsole
+  ld de, Message_EmuliciousMode
   call OutputText
 .endif
 
@@ -2244,6 +2252,9 @@ PrintChar:
 .ifdef WriteToSDSCDebugConsole
     call PrintChar_SDSC
 .endif
+.ifdef WriteToEmuliciousDebugConsole
+    call PrintChar_Emulicious
+.endif
 .ifdef WriteToSRAM
     call PrintChar_SRAM
 .endif
@@ -2266,6 +2277,9 @@ Message_TitleInfo:
 
 Message_SDSCMode:
   .asc "* SDSC Debug Console", NEWLINE, STREND
+
+Message_EmuliciousMode:
+  .asc "* Emulicious Debug Console", NEWLINE, STREND
 
 Message_SRAMMode:
   .asc "* SRAM", NEWLINE, STREND
@@ -2429,6 +2443,26 @@ PrintChar_SDSC:
 +:  out (SDSC_OUTPORT_DEBUGCONSOLE_DATA), a
   pop af
   ret
+.ends
+
+.section "Emulicious debug console" free
+PrintChar_Emulicious:
+  push hl
+  push de
+    ld hl, _format
+    ld de, EmuliciousConsoleChar
+    cp $0d ; Change \n to \r
+    jr nz, +
+    ld a, $0a
++:  ld (EmuliciousConsoleChar), a
+    ; Invoke a printf with the char
+    ld d, d
+    jr +
+    .dw $6464, $0200
++:pop de
+  pop hl
+  ret
+_format: .db "%c",  0
 .ends
 
 .ifdef WriteToScreen
@@ -3174,7 +3208,7 @@ PrintChar_SRAM:
 
 ; SDSC tag and SMS rom header
 .sdsctag \
-  0.20, \
+  0.21, \
   "Z80 Instruction Exerciser", \
   "Based on ZEXALL by Frank Cringle, " \
     "with credit to J.G.Harston\n" \
